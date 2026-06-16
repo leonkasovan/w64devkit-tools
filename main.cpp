@@ -791,6 +791,8 @@ int main() {
     uiControlShow(uiControl(window));
     setWindowIcon(window);
     uiMain();
+    if (libTableModel)
+        uiFreeTableModel(libTableModel);
     uiUninit();
     return 0;
 }

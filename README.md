@@ -16,7 +16,9 @@ Requires [w64devkit](https://github.com/skeeto/w64devkit) (MinGW-w64 + make).
 
 ```sh
 make -j4                        # Release build (stripped)
+
 make -j4 config=Debug           # Debug build (-g, -DDEBUG, no strip)
+gdb -x gdb_watch.cmd w64devkit-tools.exe
 ```
 
 This compiles the libui-ng bundled library and links the executable.
