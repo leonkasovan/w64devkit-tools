@@ -49,6 +49,7 @@ static uiWindow *window = nullptr;
 static uiEntry *prefixEntry = nullptr;
 static uiTable *libTable = nullptr;
 static uiTableModel *libTableModel = nullptr;
+static uiCheckbox *forceUpdateCb = nullptr;
 static uiButton *installBtn = nullptr;
 static uiMultilineEntry *outputPane = nullptr;
 
@@ -659,7 +660,8 @@ static void onInstall(uiButton *, void *) {
     uiMultilineEntrySetText(outputPane, "");
 
     // Load installed set and skip already-installed libraries
-    auto installed = loadInstalled(job->iniPath, job->prefix);
+    bool forceUpdate = uiCheckboxChecked(forceUpdateCb) != 0;
+    auto installed = forceUpdate ? std::unordered_set<std::string>() : loadInstalled(job->iniPath, job->prefix);
 
     int maxLevel = 0;
     for (int i = 0; i < NUM_LIBS; i++)
@@ -693,8 +695,9 @@ static void onInstall(uiButton *, void *) {
     }
 
     char header[256];
-    std::snprintf(header, sizeof(header), "=== Installing %d library%s%s ===\n",
+    std::snprintf(header, sizeof(header), "=== Installing %d library%s%s%s ===\n",
                   job->count, job->count > 1 ? "s" : "",
+                  forceUpdate ? " (force update)" : "",
                   skipped > 0 ? " (skipping already installed)" : "");
     uiMultilineEntryAppend(outputPane, header);
     uiControlDisable(uiControl(installBtn));
@@ -781,6 +784,9 @@ int main() {
     uiButtonOnClicked(installBtn, onInstall, nullptr);
     uiBoxAppend(btnBox, uiControl(installBtn), 0);
 
+    forceUpdateCb = uiNewCheckbox("Force Update");
+    uiBoxAppend(btnBox, uiControl(forceUpdateCb), 0);
+
     // Output
     uiBoxAppend(vbox, uiControl(uiNewLabel("Output:")), 0);
     outputPane = uiNewMultilineEntry();
@@ -791,8 +797,10 @@ int main() {
     uiControlShow(uiControl(window));
     setWindowIcon(window);
     uiMain();
-    if (libTableModel)
+    if (libTableModel) {
         uiFreeTableModel(libTableModel);
+        libTableModel = nullptr;
+    }
     uiUninit();
     return 0;
 }

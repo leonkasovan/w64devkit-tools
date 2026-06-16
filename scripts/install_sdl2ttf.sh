@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-#deps: sdl2, freetype
+#deps: sdl2, freetype, harfbuzz
 #desc: SDL2 TrueType font rendering
 #version: 2.24.0
 #name: sdl2ttf
