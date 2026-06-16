@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 #deps: none
 #desc: Extended Module Player (music)
 #version: 4.7.0

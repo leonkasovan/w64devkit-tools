@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 #deps: none
 #desc: Bzip2 compression
 #version: 1.0.8
@@ -12,7 +13,7 @@ if pkg-config --exists bzip2 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libbz2.a" 
 fi
 
 wget https://github.com/libarchive/bzip2/archive/refs/tags/bzip2-1.0.8.zip -O bzip2-1.0.8.zip
-unzip bzip2-1.0.8.zip
+unzip -o bzip2-1.0.8.zip
 (
   cd bzip2-bzip2-1.0.8
   make libbz2.a

@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 #deps: none
 #desc: MPEG audio decoder
 #version: 1.33.5
@@ -11,11 +12,12 @@ if pkg-config --exists libmpg123 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libmpg
     echo "[SKIPPED] mpg123 already installed"; exit 0
 fi
 
-wget https://sourceforge.net/projects/mpg123/files/mpg123/1.33.5/mpg123-1.33.5.tar.bz2/download -O mpg123-1.33.5.tar.bz2
+wget https://www.mpg123.de/download/mpg123-1.33.5.tar.bz2 -O mpg123-1.33.5.tar.bz2 || \
+wget http://www.mpg123.de/download/mpg123-1.33.5.tar.bz2 -O mpg123-1.33.5.tar.bz2
 tar -xjf mpg123-1.33.5.tar.bz2
 (
   cd mpg123-1.33.5
-  ./configure --prefix="$INSTALL_PREFIX" --enable-static --disable-shared --disable-components --enable-libmpg123
+  PATH="$INSTALL_PREFIX/bin:$PATH" ./configure --prefix="$INSTALL_PREFIX" --enable-static --disable-shared --disable-components --enable-libmpg123 --with-gnu-ld --host=i686-w64-mingw32
   make -j8
   make install
 )

@@ -12,13 +12,11 @@
 #   WINDRES    — Resource compiler (default: windres)
 #   CXXFLAGS   — Extra C++ flags (default: -std=c++17 -static -static-libgcc -static-libstdc++)
 #   CFLAGS     — Extra C flags   (default: -std=c17 -static -static-libgcc)
-#   PREFIX     — Install prefix for the executable (default: C:/w64devkit)
 
 CXX       ?= g++
 CC        ?= gcc
 AR        ?= ar
 WINDRES   ?= windres
-PREFIX    ?= C:/w64devkit
 
 CXXFLAGS  ?= -std=c++17 -static -static-libgcc -static-libstdc++
 CFLAGS    ?= -std=c17 -static -static-libgcc
@@ -68,7 +66,7 @@ all: w64devkit-tools.exe
 # -- Final executable --
 w64devkit-tools.exe: $(BUILD_DIR)/main.o $(BUILD_DIR)/libui.a $(BUILD_DIR)/resources.o | $(BUILD_DIR)
 	$(CXX) -o $@ $(BUILD_DIR)/main.o $(BUILD_DIR)/libui.a $(BUILD_DIR)/resources.o \
-		$(CXXFLAGS) \
+		$(CXXFLAGS) -s \
 		-luser32 -lkernel32 -lgdi32 -lcomctl32 -luxtheme -lmsimg32 \
 		-lwinmm -lcomdlg32 -ld2d1 -ldwrite -lole32 -loleaut32 -loleacc \
 		-lusp10 -luuid -lgdiplus -lwindowscodecs

@@ -410,7 +410,25 @@ static void setWindowIcon(uiWindow *w) {
 static void applyUiUpdate(void *data) {
     auto *upd = static_cast<UiUpdate *>(data);
     if (upd->text[0]) {
-        uiMultilineEntryAppend(outputPane, upd->text);
+        char *current = uiMultilineEntryText(outputPane);
+        size_t curLen = current ? strlen(current) : 0;
+        size_t newLen = strlen(upd->text);
+        if (curLen + newLen > 25000) {
+            size_t keep = 20000;
+            const char *tail = current;
+            if (curLen > keep) {
+                tail = current + (curLen - keep);
+                while (tail > current && *tail != '\n') tail--;
+                if (tail == current) tail = current + (curLen - keep);
+            }
+            std::string s(tail);
+            s += "\n--- trimmed (output limit) ---\n";
+            s += upd->text;
+            uiMultilineEntrySetText(outputPane, s.c_str());
+        } else {
+            uiMultilineEntryAppend(outputPane, upd->text);
+        }
+        uiFreeText(current);
     }
     if (upd->done) {
         uiControlEnable(uiControl(installBtn));
@@ -517,6 +535,17 @@ static int runScriptStreamed(const char *shell, const char *script, const char *
 
 static unsigned int __stdcall installThread(void *data) {
     auto *job = static_cast<InstallJob *>(data);
+
+    // Prepend the toolchain bin dir to PATH so scripts find gcc, grep, etc.
+    {
+        std::string path = std::string(job->prefix) + "/bin";
+        const char *oldPath = getenv("PATH");
+        if (oldPath && oldPath[0]) {
+            path += ";";
+            path += oldPath;
+        }
+        SetEnvironmentVariableA("PATH", path.c_str());
+    }
 
     for (int i = 0; i < job->count; i++) {
         int libIdx = job->order[i];

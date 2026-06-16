@@ -1,6 +1,7 @@
 #!/bin/bash
+set -e
 #deps: ogg
-#desc: Opus audio codec + opusfile
+#desc: Opus audio codec
 #version: 1.6.1
 #name: opus
 
@@ -18,17 +19,3 @@ cmake --build build_opus --parallel
 cmake --install build_opus
 rm -r opus-1.6.1 build_opus opus-1.6.1.tar.gz
 echo "Test: pkg-config --cflags --libs opus"
-
-if pkg-config --exists opusfile 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libopusfile.a" ]; then
-    echo "[SKIPPED] opusfile already installed"; exit 0
-fi
-wget https://github.com/xiph/opusfile/releases/download/v0.12/opusfile-0.12.zip
-unzip opusfile-0.12.zip
-(
-  cd opusfile-0.12
-  ./configure --disable-http --disable-examples --disable-doc --disable-shared --prefix="$INSTALL_PREFIX"
-  make -j8
-  make install
-)
-rm -r opusfile-0.12 opusfile-0.12.zip
-echo "Test: pkg-config --cflags --libs opusfile"

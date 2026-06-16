@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 #deps: ogg
 #desc: FLAC audio codec
 #version: 1.5.0

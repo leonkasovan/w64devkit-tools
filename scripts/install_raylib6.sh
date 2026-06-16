@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 #deps: none
 #desc: Simple game/graphics library
 #version: 6.0
@@ -12,7 +13,7 @@ if pkg-config --exists raylib 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libraylib
 fi
 
 wget https://github.com/raysan5/raylib/archive/refs/tags/6.0.zip -O raylib-6.0.zip
-unzip raylib-6.0.zip
+unzip -o raylib-6.0.zip
 cmake -S raylib-6.0 -B build-raylib6 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DBUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX"
 cmake --build build-raylib6 --parallel
 cmake --install build-raylib6
