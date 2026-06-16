@@ -1,11 +1,15 @@
 #!/bin/bash
-#deps: zlib zstd brotli
+#deps: zlib zstd brotli bz2
 #desc: URL transfer library
 #version: 8.19.0
 #name: curl
 
 # Use first argument if provided, otherwise use default
 INSTALL_PREFIX="${1:-C:/w64devkit}"
+
+if pkg-config --exists libcurl 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libcurl.a" ]; then
+    echo "[SKIPPED] curl already installed"; exit 0
+fi
 
 wget https://github.com/curl/curl/releases/download/curl-8_19_0/curl-8.19.0.zip
 unzip curl-8.19.0.zip

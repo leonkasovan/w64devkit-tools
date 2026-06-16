@@ -18,6 +18,7 @@ freebuff --continue 2026-06-16T00-09-41.384Z
 
 #include <string>
 #include <vector>
+#include <unordered_set>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -54,6 +55,7 @@ struct InstallJob {
     std::vector<int> order;
     int count = 0;
     char prefix[256]{};
+    char csvPath[MAX_PATH]{};
 };
 
 // Queue UI updates from worker thread via uiQueueMain
@@ -422,6 +424,27 @@ static std::string toBashPath(std::string path) {
     return path;
 }
 
+// ---- Installed library tracking ----
+
+static std::unordered_set<std::string> loadInstalled(const char *csvPath) {
+    std::unordered_set<std::string> set;
+    std::ifstream file(csvPath);
+    std::string line;
+    while (std::getline(file, line)) {
+        size_t s = line.find_first_not_of(" \t\r\n");
+        size_t e = line.find_last_not_of(" \t\r\n");
+        if (s != std::string::npos)
+            set.insert(line.substr(s, e - s + 1));
+    }
+    return set;
+}
+
+static void markInstalled(const char *csvPath, const char *name) {
+    std::ofstream file(csvPath, std::ios::app);
+    if (file)
+        file << name << "\n";
+}
+
 // ---- Install thread ----
 // Launches each script via CreateProcessW (like w64devkit.c), streaming
 // stdout/stderr incrementally so the output pane stays live.
@@ -511,6 +534,8 @@ static unsigned int __stdcall installThread(void *data) {
             return 1;
         }
 
+        markInstalled(job->csvPath, libs[libIdx].name.c_str());
+
         std::snprintf(msg, sizeof(msg), "<<< %s done\n", libs[libIdx].name.c_str());
         sendUpdate(msg, -1, false);
     }
@@ -529,28 +554,65 @@ static void onInstall(uiButton *, void *) {
     std::strncpy(job->prefix, prefix ? prefix : "C:/w64devkit", sizeof(job->prefix) - 1);
     job->prefix[sizeof(job->prefix) - 1] = '\0';
 
-    // Find max level
+    // Build csv path alongside the executable
+    {
+        char exePath[MAX_PATH];
+        DWORD len = GetModuleFileNameA(NULL, exePath, MAX_PATH);
+        if (len > 0 && len < MAX_PATH) {
+            std::string dir(exePath);
+            size_t sep = dir.find_last_of("\\/");
+            if (sep != std::string::npos) {
+                dir.resize(sep + 1);
+                dir += "installed.csv";
+                std::strncpy(job->csvPath, dir.c_str(), sizeof(job->csvPath) - 1);
+            }
+        }
+        if (!job->csvPath[0])
+            std::strncpy(job->csvPath, "installed.csv", sizeof(job->csvPath) - 1);
+    }
+
+    // Clear the output pane
+    uiMultilineEntrySetText(outputPane, "");
+
+    // Load installed set and skip already-installed libraries
+    auto installed = loadInstalled(job->csvPath);
+
     int maxLevel = 0;
     for (int i = 0; i < NUM_LIBS; i++)
         if (libs[i].level > maxLevel) maxLevel = libs[i].level;
 
     job->order.resize(NUM_LIBS);
+    int skipped = 0;
     for (int level = 0; level <= maxLevel; level++) {
         for (int i = 0; i < NUM_LIBS; i++) {
             if (selected[i] && libs[i].level == level) {
-                job->order[job->count++] = i;
+                if (installed.find(libs[i].name) != installed.end()) {
+                    skipped++;
+                    char msg[256];
+                    std::snprintf(msg, sizeof(msg), "--- %s already installed, skipping\n",
+                                  libs[i].name.c_str());
+                    uiMultilineEntryAppend(outputPane, msg);
+                } else {
+                    job->order[job->count++] = i;
+                }
             }
         }
     }
 
     if (job->count == 0) {
-        uiMultilineEntryAppend(outputPane, "No libraries selected.\n");
+        if (skipped > 0)
+            uiMultilineEntryAppend(outputPane, "All selected libraries already installed.\n");
+        else
+            uiMultilineEntryAppend(outputPane, "No libraries selected.\n");
         delete job;
         return;
     }
 
-    uiMultilineEntrySetText(outputPane, "");
-    uiMultilineEntryAppend(outputPane, "=== Starting installation ===\n");
+    char header[256];
+    std::snprintf(header, sizeof(header), "=== Installing %d library%s%s ===\n",
+                  job->count, job->count > 1 ? "s" : "",
+                  skipped > 0 ? " (skipping already installed)" : "");
+    uiMultilineEntryAppend(outputPane, header);
     uiControlDisable(uiControl(installBtn));
 
     // Spawn a background thread so the UI stays responsive

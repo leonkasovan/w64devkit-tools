@@ -7,6 +7,10 @@
 # Use first argument if provided, otherwise use default
 INSTALL_PREFIX="${1:-C:/w64devkit}"
 
+if pkg-config --exists libpng 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libpng16.a" ]; then
+    echo "[SKIPPED] png already installed"; exit 0
+fi
+
 wget https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.58.zip -O png-1.6.58.zip
 unzip png-1.6.58.zip
 cmake -S libpng-1.6.58 -B build_png -DPNG_SHARED=OFF -DPNG_TOOLS=OFF -DPNG_TESTS=OFF -DPNG_STATIC=ON -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" -DCMAKE_PREFIX_PATH="$INSTALL_PREFIX" -DZLIB_LIBRARY="$INSTALL_PREFIX"/lib/libzs.a

@@ -7,6 +7,10 @@
 # Use first argument if provided, otherwise use default
 INSTALL_PREFIX="${1:-C:/w64devkit}"
 
+if pkg-config --exists wavpack 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libwavpack.a" ]; then
+    echo "[SKIPPED] wavpack already installed"; exit 0
+fi
+
 wget https://github.com/dbry/WavPack/archive/refs/tags/5.9.0.zip -O wavpack-5.9.0.zip
 unzip wavpack-5.9.0.zip
 cmake -S WavPack-5.9.0 -B build_wavpack -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" -DBUILD_SHARED_LIBS=OFF -DWAVPACK_BUILD_PROGRAMS=OFF -DBUILD_TESTING=OFF -DWAVPACK_INSTALL_DOCS=OFF

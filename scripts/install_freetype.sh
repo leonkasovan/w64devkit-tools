@@ -1,11 +1,15 @@
 #!/bin/bash
-#deps: zlib
+#deps: zlib bz2
 #desc: Font rendering library
 #version: 2.14.3
 #name: freetype
 
 # Use first argument if provided, otherwise use default
 INSTALL_PREFIX="${1:-C:/w64devkit}"
+
+if pkg-config --exists freetype2 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libfreetype.a" ]; then
+    echo "[SKIPPED] freetype already installed"; exit 0
+fi
 
 wget https://github.com/libsdl-org/freetype/archive/refs/tags/VER-2-14-3.zip -O freetype-2.14.3.zip
 unzip freetype-2.14.3.zip

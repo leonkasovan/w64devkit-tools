@@ -7,6 +7,10 @@
 # Use first argument if provided, otherwise use default
 INSTALL_PREFIX="${1:-C:/w64devkit}"
 
+if pkg-config --exists raylib 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libraylib.a" ]; then
+    echo "[SKIPPED] raylib6 already installed"; exit 0
+fi
+
 wget https://github.com/raysan5/raylib/archive/refs/tags/6.0.zip -O raylib-6.0.zip
 unzip raylib-6.0.zip
 cmake -S raylib-6.0 -B build-raylib6 -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DBUILD_EXAMPLES=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX"
