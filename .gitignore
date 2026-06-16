@@ -1,0 +1,16 @@
+# Build artifacts
+build/
+*.exe
+*.o
+*.a
+
+# Editor/IDE
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
