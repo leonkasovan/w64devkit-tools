@@ -19,6 +19,8 @@ freebuff --continue 2026-06-16T00-09-41.384Z
 #include <string>
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
+#include <mutex>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -39,6 +41,7 @@ struct Library {
 static std::vector<Library> libs;
 static std::vector<int> selected;           // 0/1 flags
 static int NUM_LIBS = 0;
+static std::mutex gLock;                    // guards libs/selected across threads
 
 // ---- UI controls ----
 
@@ -96,13 +99,20 @@ static std::vector<std::string> parseDeps(const std::string &raw) {
     std::istringstream stream(raw);
     std::string token;
     while (stream >> token) {
-        // strip trailing comma/semicolon if attached to a token
         while (!token.empty() && (token.back() == ',' || token.back() == ';'))
             token.pop_back();
         if (!token.empty())
             result.push_back(token);
     }
     return result;
+}
+
+static const std::vector<std::string> &cachedParseDeps(const std::string &raw) {
+    static std::unordered_map<std::string, std::vector<std::string>> cache;
+    auto it = cache.find(raw);
+    if (it != cache.end())
+        return it->second;
+    return cache.emplace(raw, parseDeps(raw)).first->second;
 }
 
 // Calculate dependency levels via topological sort.
@@ -118,8 +128,7 @@ static void calculateLevels() {
                 changed = true;
                 continue;
             }
-            // parse the dep list
-            auto deps = parseDeps(libs[i].deps);
+            const auto &deps = cachedParseDeps(libs[i].deps);
             int maxDep = -1;
             bool allAssigned = true;
             for (const auto &d : deps) {
@@ -140,9 +149,13 @@ static void calculateLevels() {
             }
         }
     } while (changed);
-    // any unassigned (circular) get level 0
-    for (size_t i = 0; i < libs.size(); i++)
-        if (assigned[i] < 0) assigned[i] = 0;
+    for (size_t i = 0; i < libs.size(); i++) {
+        if (assigned[i] < 0) {
+            std::fprintf(stderr, "warning: circular dependency detected for '%s', assigning level 0\n",
+                         libs[i].name.c_str());
+            assigned[i] = 0;
+        }
+    }
     for (size_t i = 0; i < libs.size(); i++)
         libs[i].level = assigned[i];
 }
@@ -321,7 +334,7 @@ static void libModelSetCellValue(uiTableModelHandler *, uiTableModel *m, int row
     if (column == 1) {
         const char *s = uiTableValueString(value);
         if (!s) return;
-        // Try to preserve name and version; if parsing fails, replace desc entirely.
+        std::lock_guard<std::mutex> lock(gLock);
         Library &lib = libs[row];
         std::string edited(s);
         // If the edited text starts with the library name, try to extract a
@@ -508,9 +521,17 @@ static unsigned int __stdcall installThread(void *data) {
     for (int i = 0; i < job->count; i++) {
         int libIdx = job->order[i];
 
+        std::string libName, libVersion, libScript;
+        {
+            std::lock_guard<std::mutex> lock(gLock);
+            libName    = libs[libIdx].name;
+            libVersion = libs[libIdx].version;
+            libScript  = libs[libIdx].script;
+        }
+
         char msg[4096];
         std::snprintf(msg, sizeof(msg), ">>> Installing %s (%s)...\n",
-                      libs[libIdx].name.c_str(), libs[libIdx].version.c_str());
+                      libName.c_str(), libVersion.c_str());
         sendUpdate(msg, -1, false);
 
         std::string shell = std::string(job->prefix);
@@ -519,7 +540,7 @@ static unsigned int __stdcall installThread(void *data) {
         else
             shell += "bin/bash.exe";
 
-        int rc = runScriptStreamed(shell.c_str(), libs[libIdx].script.c_str(), job->prefix);
+        int rc = runScriptStreamed(shell.c_str(), libScript.c_str(), job->prefix);
         if (rc < 0) {
             std::snprintf(msg, sizeof(msg), "!!! Failed to start install process (error %d)\n", rc);
             sendUpdate(msg, -1, true);
@@ -528,15 +549,15 @@ static unsigned int __stdcall installThread(void *data) {
         }
         if (rc != 0) {
             std::snprintf(msg, sizeof(msg), "!!! %s FAILED (exit code %d)\n",
-                          libs[libIdx].name.c_str(), rc);
+                          libName.c_str(), rc);
             sendUpdate(msg, -1, true);
             delete job;
             return 1;
         }
 
-        markInstalled(job->csvPath, libs[libIdx].name.c_str());
+        markInstalled(job->csvPath, libName.c_str());
 
-        std::snprintf(msg, sizeof(msg), "<<< %s done\n", libs[libIdx].name.c_str());
+        std::snprintf(msg, sizeof(msg), "<<< %s done\n", libName.c_str());
         sendUpdate(msg, -1, false);
     }
 
@@ -547,10 +568,19 @@ static unsigned int __stdcall installThread(void *data) {
 
 // ---- Install button handler ----
 
+static bool isUnsafePrefix(const char *s) {
+    return s && (std::strpbrk(s, "\"$`&|;<>") || std::strchr(s, '\n') || std::strchr(s, '\r'));
+}
+
 static void onInstall(uiButton *, void *) {
+    const char *prefix = uiEntryText(prefixEntry);
+    if (isUnsafePrefix(prefix)) {
+        uiMultilineEntryAppend(outputPane, "Error: install prefix contains invalid characters.\n");
+        return;
+    }
+
     auto *job = new InstallJob();
 
-    const char *prefix = uiEntryText(prefixEntry);
     std::strncpy(job->prefix, prefix ? prefix : "C:/w64devkit", sizeof(job->prefix) - 1);
     job->prefix[sizeof(job->prefix) - 1] = '\0';
 
