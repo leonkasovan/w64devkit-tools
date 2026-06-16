@@ -7,7 +7,7 @@ A native Windows GUI application (libui-ng) for managing and installing librarie
 - Browse 20+ libraries (zlib, SDL2, curl, freetype, opus, etc.)
 - Automatic dependency resolution and topological install order
 - Installs to a user-specified prefix (default: `C:/w64devkit`)
-- Tracks installed libraries in `installed.csv`
+- Tracks installed libraries per prefix in `res/installed.ini`
 - Streaming output display during script execution
 
 ## Building
@@ -15,7 +15,8 @@ A native Windows GUI application (libui-ng) for managing and installing librarie
 Requires [w64devkit](https://github.com/skeeto/w64devkit) (MinGW-w64 + make).
 
 ```sh
-make -j4
+make -j4                        # Release build (stripped)
+make -j4 config=Debug           # Debug build (-g, -DDEBUG, no strip)
 ```
 
 This compiles the libui-ng bundled library and links the executable.
@@ -52,6 +53,5 @@ The script receives one argument: the install prefix. Exit 0 on success.
 ├── Makefile           — Build system
 ├── libui-ng/          — Bundled libui-ng source
 ├── scripts/           — Per-library install shell scripts
-├── res/               — Resources (icon, manifest, rc)
-└── installed.csv      — Tracks installed libraries
+├── res/               — Resources (icon, manifest, rc, installed.ini)
 ```

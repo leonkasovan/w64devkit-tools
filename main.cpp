@@ -58,7 +58,7 @@ struct InstallJob {
     std::vector<int> order;
     int count = 0;
     char prefix[256]{};
-    char csvPath[MAX_PATH]{};
+    char iniPath[MAX_PATH]{};
 };
 
 // Queue UI updates from worker thread via uiQueueMain
@@ -457,23 +457,48 @@ static std::string toBashPath(std::string path) {
 
 // ---- Installed library tracking ----
 
-static std::unordered_set<std::string> loadInstalled(const char *csvPath) {
+static std::unordered_set<std::string> loadInstalled(const char *path, const char *prefix) {
     std::unordered_set<std::string> set;
-    std::ifstream file(csvPath);
+    std::ifstream file(path);
+    if (!file) return set;
+    std::string target = std::string(prefix) + "=";
     std::string line;
     while (std::getline(file, line)) {
         size_t s = line.find_first_not_of(" \t\r\n");
         size_t e = line.find_last_not_of(" \t\r\n");
-        if (s != std::string::npos)
-            set.insert(line.substr(s, e - s + 1));
+        if (s == std::string::npos) continue;
+        line = line.substr(s, e - s + 1);
+        if (line.rfind(target, 0) == 0) {
+            std::istringstream stream(line.substr(target.size()));
+            std::string lib;
+            while (stream >> lib)
+                set.insert(lib);
+        }
     }
     return set;
 }
 
-static void markInstalled(const char *csvPath, const char *name) {
-    std::ofstream file(csvPath, std::ios::app);
-    if (file)
-        file << name << "\n";
+static void markInstalled(const char *path, const char *prefix, const char *name) {
+    std::string target = std::string(prefix) + "=";
+    std::vector<std::string> lines;
+    bool found = false;
+    {
+        std::ifstream inFile(path);
+        std::string line;
+        while (std::getline(inFile, line)) {
+            if (!found && line.rfind(target, 0) == 0) {
+                line += " ";
+                line += name;
+                found = true;
+            }
+            lines.push_back(line);
+        }
+    }
+    if (!found)
+        lines.push_back(target + name);
+    std::ofstream outFile(path);
+    for (const auto &l : lines)
+        outFile << l << "\n";
 }
 
 // ---- Install thread ----
@@ -584,7 +609,7 @@ static unsigned int __stdcall installThread(void *data) {
             return 1;
         }
 
-        markInstalled(job->csvPath, libName.c_str());
+        markInstalled(job->iniPath, job->prefix, libName.c_str());
 
         std::snprintf(msg, sizeof(msg), "<<< %s done\n", libName.c_str());
         sendUpdate(msg, -1, false);
@@ -613,7 +638,7 @@ static void onInstall(uiButton *, void *) {
     std::strncpy(job->prefix, prefix ? prefix : "C:/w64devkit", sizeof(job->prefix) - 1);
     job->prefix[sizeof(job->prefix) - 1] = '\0';
 
-    // Build csv path alongside the executable
+    // Build ini path in the res/ folder alongside the executable
     {
         char exePath[MAX_PATH];
         DWORD len = GetModuleFileNameA(NULL, exePath, MAX_PATH);
@@ -622,19 +647,19 @@ static void onInstall(uiButton *, void *) {
             size_t sep = dir.find_last_of("\\/");
             if (sep != std::string::npos) {
                 dir.resize(sep + 1);
-                dir += "installed.csv";
-                std::strncpy(job->csvPath, dir.c_str(), sizeof(job->csvPath) - 1);
+                dir += "res\\installed.ini";
+                std::strncpy(job->iniPath, dir.c_str(), sizeof(job->iniPath) - 1);
             }
         }
-        if (!job->csvPath[0])
-            std::strncpy(job->csvPath, "installed.csv", sizeof(job->csvPath) - 1);
+        if (!job->iniPath[0])
+            std::strncpy(job->iniPath, "res/installed.ini", sizeof(job->iniPath) - 1);
     }
 
     // Clear the output pane
     uiMultilineEntrySetText(outputPane, "");
 
     // Load installed set and skip already-installed libraries
-    auto installed = loadInstalled(job->csvPath);
+    auto installed = loadInstalled(job->iniPath, job->prefix);
 
     int maxLevel = 0;
     for (int i = 0; i < NUM_LIBS; i++)
