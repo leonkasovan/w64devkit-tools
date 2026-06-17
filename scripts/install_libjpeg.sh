@@ -6,8 +6,9 @@ set -e
 #name: libjpeg
 
 INSTALL_PREFIX="${1:-C:/w64devkit}"
+FORCE_UPDATE="${2:-false}"
 
-if pkg-config --exists libjpeg 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libjpeg.a" ]; then
+if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists libjpeg 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libjpeg.a" ] ); then
     echo "[SKIPPED] libjpeg already installed"; exit 0
 fi
 

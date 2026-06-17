@@ -7,8 +7,9 @@ set -e
 
 # Use first argument if provided, otherwise use default
 INSTALL_PREFIX="${1:-C:/w64devkit}"
+FORCE_UPDATE="${2:-false}"
 
-if pkg-config --exists sdl2 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libSDL2.a" ]; then
+if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists sdl2 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libSDL2.a" ] ); then
     echo "[SKIPPED] sdl2 already installed"; exit 0
 fi
 

@@ -7,8 +7,9 @@ set -e
 
 # Use first argument if provided, otherwise use default
 INSTALL_PREFIX="${1:-C:/w64devkit}"
+FORCE_UPDATE="${2:-false}"
 
-if pkg-config --exists opus 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libopus.a" ]; then
+if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists opus 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libopus.a" ] ); then
     echo "[SKIPPED] opus already installed"; exit 0
 fi
 

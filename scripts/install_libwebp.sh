@@ -6,8 +6,9 @@ set -e
 #name: libwebp
 
 INSTALL_PREFIX="${1:-C:/w64devkit}"
+FORCE_UPDATE="${2:-false}"
 
-if pkg-config --exists libwebp 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libwebp.a" ]; then
+if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists libwebp 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libwebp.a" ] ); then
     echo "[SKIPPED] libwebp already installed"; exit 0
 fi
 

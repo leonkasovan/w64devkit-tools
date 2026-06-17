@@ -7,8 +7,9 @@ set -e
 
 # Use first argument if provided, otherwise use default
 INSTALL_PREFIX="${1:-C:/w64devkit}"
+FORCE_UPDATE="${2:-false}"
 
-if pkg-config --exists SDL2_ttf 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libSDL2_ttf.a" ]; then
+if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists SDL2_ttf 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libSDL2_ttf.a" ] ); then
     echo "[SKIPPED] sdl2ttf already installed"; exit 0
 fi
 

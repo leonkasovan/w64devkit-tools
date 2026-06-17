@@ -60,6 +60,7 @@ struct InstallJob {
     int count = 0;
     char prefix[256]{};
     char iniPath[MAX_PATH]{};
+    int forceUpdate = 0;
 };
 
 // Queue UI updates from worker thread via uiQueueMain
@@ -506,7 +507,7 @@ static void markInstalled(const char *path, const char *prefix, const char *name
 // Launches each script via CreateProcessW (like w64devkit.c), streaming
 // stdout/stderr incrementally so the output pane stays live.
 
-static int runScriptStreamed(const char *shell, const char *script, const char *prefix) {
+static int runScriptStreamed(const char *shell, const char *script, const char *prefix, const char *forceUpdate) {
     SECURITY_ATTRIBUTES sa{sizeof(sa), NULL, TRUE};
     HANDLE readPipe = NULL, writePipe = NULL;
     if (!CreatePipe(&readPipe, &writePipe, &sa, 0))
@@ -520,7 +521,7 @@ static int runScriptStreamed(const char *shell, const char *script, const char *
     // Convert to wide strings for CreateProcessW (w64devkit.c style)
     std::wstring wdir = L"scripts";
 
-    std::string cmdLineA = "\"" + toNativePath(shell) + "\" \"" + toBashPath(script) + "\" \"" + toBashPath(prefix) + "\"";
+    std::string cmdLineA = "\"" + toNativePath(shell) + "\" \"" + toBashPath(script) + "\" \"" + toBashPath(prefix) + "\" \"" + forceUpdate + "\"";
     int wlen = MultiByteToWideChar(CP_UTF8, 0, cmdLineA.c_str(), -1, NULL, 0);
     std::wstring cmdLineW(wlen, L'\0');
     MultiByteToWideChar(CP_UTF8, 0, cmdLineA.c_str(), -1, &cmdLineW[0], wlen);
@@ -595,7 +596,8 @@ static unsigned int __stdcall installThread(void *data) {
         else
             shell += "bin/bash.exe";
 
-        int rc = runScriptStreamed(shell.c_str(), libScript.c_str(), job->prefix);
+        const char *forceStr = job->forceUpdate ? "true" : "false";
+        int rc = runScriptStreamed(shell.c_str(), libScript.c_str(), job->prefix, forceStr);
         if (rc < 0) {
             std::snprintf(msg, sizeof(msg), "!!! Failed to start install process (error %d)\n", rc);
             sendUpdate(msg, -1, true);
@@ -656,11 +658,13 @@ static void onInstall(uiButton *, void *) {
             std::strncpy(job->iniPath, "res/installed.ini", sizeof(job->iniPath) - 1);
     }
 
+    job->forceUpdate = uiCheckboxChecked(forceUpdateCb) != 0 ? 1 : 0;
+
     // Clear the output pane
     uiMultilineEntrySetText(outputPane, "");
 
     // Load installed set and skip already-installed libraries
-    bool forceUpdate = uiCheckboxChecked(forceUpdateCb) != 0;
+    bool forceUpdate = job->forceUpdate != 0;
     auto installed = forceUpdate ? std::unordered_set<std::string>() : loadInstalled(job->iniPath, job->prefix);
 
     int maxLevel = 0;

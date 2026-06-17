@@ -7,8 +7,9 @@ set -e
 
 # Use first argument if provided, otherwise use default
 INSTALL_PREFIX="${1:-C:/w64devkit}"
+FORCE_UPDATE="${2:-false}"
 
-if pkg-config --exists glfw3 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libglfw3.a" ]; then
+if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists glfw3 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libglfw3.a" ] ); then
     echo "[SKIPPED] glfw already installed"; exit 0
 fi
 

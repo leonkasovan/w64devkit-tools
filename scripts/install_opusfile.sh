@@ -6,8 +6,9 @@ set -e
 #name: opusfile
 
 INSTALL_PREFIX="${1:-C:/w64devkit}"
+FORCE_UPDATE="${2:-false}"
 
-if pkg-config --exists opusfile 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libopusfile.a" ]; then
+if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists opusfile 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libopusfile.a" ] ); then
     echo "[SKIPPED] opusfile already installed"; exit 0
 fi
 

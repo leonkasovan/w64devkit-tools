@@ -6,8 +6,9 @@ set -e
 #name: harfbuzz
 
 INSTALL_PREFIX="${1:-C:/w64devkit}"
+FORCE_UPDATE="${2:-false}"
 
-if pkg-config --exists harfbuzz 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libharfbuzz.a" ]; then
+if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists harfbuzz 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libharfbuzz.a" ] ); then
     echo "[SKIPPED] harfbuzz already installed"; exit 0
 fi
 
