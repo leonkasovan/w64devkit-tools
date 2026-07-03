@@ -5,13 +5,8 @@ set -e
 #version: 1.2.0
 #name: brotli
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists libbrotlidec 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libbrotlicommon.a" ] ); then
-    echo "[SKIPPED] brotli already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "libbrotlidec" "$INSTALL_PREFIX/lib/libbrotlicommon.a" "brotli"
 
 wget https://github.com/google/brotli/archive/refs/tags/v1.2.0.zip -O brotli-1.2.0.zip
 unzip -o brotli-1.2.0.zip

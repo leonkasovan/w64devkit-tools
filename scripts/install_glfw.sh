@@ -5,13 +5,8 @@ set -e
 #version: 3.4
 #name: glfw
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists glfw3 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libglfw3.a" ] ); then
-    echo "[SKIPPED] glfw already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "glfw3" "$INSTALL_PREFIX/lib/libglfw3.a" "glfw"
 
 wget https://github.com/glfw/glfw/archive/refs/tags/3.4.zip -O glfw-3.4.zip
 unzip -o glfw-3.4.zip

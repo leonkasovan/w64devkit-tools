@@ -5,12 +5,8 @@ set -e
 #version: 10.4.0
 #name: harfbuzz
 
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists harfbuzz 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libharfbuzz.a" ] ); then
-    echo "[SKIPPED] harfbuzz already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "harfbuzz" "$INSTALL_PREFIX/lib/libharfbuzz.a" "harfbuzz"
 
 wget https://github.com/harfbuzz/harfbuzz/archive/refs/tags/10.4.0.tar.gz -O harfbuzz-10.4.0.tar.gz
 tar -xf harfbuzz-10.4.0.tar.gz

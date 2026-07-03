@@ -5,13 +5,8 @@ set -e
 #version: 8.19.0
 #name: curl
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists libcurl 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libcurl.a" ] ); then
-    echo "[SKIPPED] curl already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "libcurl" "$INSTALL_PREFIX/lib/libcurl.a" "curl"
 
 wget https://github.com/curl/curl/releases/download/curl-8_19_0/curl-8.19.0.zip
 unzip -o curl-8.19.0.zip

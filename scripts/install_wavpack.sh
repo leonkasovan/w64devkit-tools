@@ -5,13 +5,8 @@ set -e
 #version: 5.9.0
 #name: wavpack
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists wavpack 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libwavpack.a" ] ); then
-    echo "[SKIPPED] wavpack already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "wavpack" "$INSTALL_PREFIX/lib/libwavpack.a" "wavpack"
 
 wget https://github.com/dbry/WavPack/archive/refs/tags/5.9.0.zip -O wavpack-5.9.0.zip
 unzip -o wavpack-5.9.0.zip

@@ -5,13 +5,8 @@ set -e
 #version: 1.3.6
 #name: ogg
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists ogg 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libogg.a" ] ); then
-    echo "[SKIPPED] ogg already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "ogg" "$INSTALL_PREFIX/lib/libogg.a" "ogg"
 
 wget https://downloads.xiph.org/releases/ogg/libogg-1.3.6.zip
 unzip -o libogg-1.3.6.zip

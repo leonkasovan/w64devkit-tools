@@ -6,7 +6,7 @@ A native Windows GUI application (libui-ng) for managing and installing librarie
 
 - Browse 20+ libraries (zlib, SDL2, curl, freetype, opus, etc.)
 - Automatic dependency resolution and topological install order
-- Installs to a user-specified prefix (default: `C:/w64devkit`)
+- Installs to a user-specified prefix (default: `C:/x86devkit`)
 - Tracks installed libraries per prefix in `res/installed.ini`
 - Streaming output display during script execution
 
@@ -46,7 +46,14 @@ Create `scripts/install_<name>.sh` with these metadata headers:
 #name: Display Name
 ```
 
-The script receives one argument: the install prefix. Exit 0 on success.
+Then source the shared preamble and call the skip check:
+
+```sh
+source "$(dirname "$0")/common.sh"
+skip_if_installed "<pkgconfig_name>" "$INSTALL_PREFIX/lib/lib<name>.a" "<display_name>"
+```
+
+The script receives two arguments: the install prefix (`$1`) and a force-update flag (`$2`, `"true"` or `"false"`). These are parsed by `common.sh` into `$INSTALL_PREFIX` and `$FORCE_UPDATE`. Exit 0 on success.
 
 ## Project structure
 
@@ -55,5 +62,6 @@ The script receives one argument: the install prefix. Exit 0 on success.
 ├── Makefile           — Build system
 ├── libui-ng/          — Bundled libui-ng source
 ├── scripts/           — Per-library install shell scripts
+│   └── common.sh      — Shared preamble (sourced by all install scripts)
 ├── res/               — Resources (icon, manifest, rc, installed.ini)
 ```

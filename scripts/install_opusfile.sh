@@ -5,19 +5,29 @@ set -e
 #version: 0.12
 #name: opusfile
 
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
+source "$(dirname "$0")/common.sh"
+skip_if_installed "opusfile" "$INSTALL_PREFIX/lib/libopusfile.a" "opusfile"
 
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists opusfile 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libopusfile.a" ] ); then
-    echo "[SKIPPED] opusfile already installed"; exit 0
-fi
-
-wget https://github.com/xiph/opusfile/releases/download/v0.12/opusfile-0.12.zip
+wget https://github.com/xiph/opusfile/releases/download/v0.12/opusfile-0.12.zip -O opusfile-0.12.zip
 unzip -o opusfile-0.12.zip
 (
   cd opusfile-0.12
-  export PATH="$INSTALL_PREFIX/bin:$PATH"
-  ./configure --disable-http --disable-examples --disable-doc --disable-shared --prefix="$INSTALL_PREFIX"
+  mkdir -p /tmp
+  # Cache tool paths for autotools (avoids PATH format issues with MSYS2)
+  export ac_cv_path_GREP="$(command -v grep)"
+  export ac_cv_path_EGREP="$(command -v grep) -E"
+  export ac_cv_path_FGREP="$(command -v grep) -F"
+  export ac_cv_prog_AWK="$(command -v awk)"
+  export ac_cv_path_SED="$(command -v sed)"
+  export LD="$(command -v ld)"
+  export AR="$(command -v ar)"
+  export RANLIB="$(command -v ranlib)"
+  export STRIP="$(command -v strip)"
+  export NM="$(command -v nm)"
+  export PKG_CONFIG="$(command -v pkg-config)"
+  export DEPS_CFLAGS="-I$INSTALL_PREFIX/include -I$INSTALL_PREFIX/include/opus"
+  export DEPS_LIBS="-L$INSTALL_PREFIX/lib -lopus -logg"
+  ./configure CC=gcc --build=$(gcc -dumpmachine) --host=$(gcc -dumpmachine) --disable-http --disable-examples --disable-doc --disable-shared --prefix="$INSTALL_PREFIX"
   make -j8
   make install
 )

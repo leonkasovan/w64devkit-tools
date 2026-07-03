@@ -5,12 +5,8 @@ set -e
 #version: 11.1.4
 #name: fmt
 
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists fmt 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libfmt.a" ] ); then
-    echo "[SKIPPED] fmt already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "fmt" "$INSTALL_PREFIX/lib/libfmt.a" "fmt"
 
 wget https://github.com/fmtlib/fmt/archive/refs/tags/11.1.4.tar.gz -O fmt-11.1.4.tar.gz
 tar -xf fmt-11.1.4.tar.gz

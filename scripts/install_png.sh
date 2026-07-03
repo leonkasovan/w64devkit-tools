@@ -5,13 +5,8 @@ set -e
 #version: 1.6.58
 #name: png
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists libpng 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libpng16.a" ] ); then
-    echo "[SKIPPED] png already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "libpng" "$INSTALL_PREFIX/lib/libpng16.a" "png"
 
 wget https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.58.zip -O png-1.6.58.zip
 unzip -o png-1.6.58.zip

@@ -5,13 +5,8 @@ set -e
 #version: 1.6.1
 #name: opus
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists opus 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libopus.a" ] ); then
-    echo "[SKIPPED] opus already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "opus" "$INSTALL_PREFIX/lib/libopus.a" "opus"
 
 wget https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz
 tar -xf opus-1.6.1.tar.gz

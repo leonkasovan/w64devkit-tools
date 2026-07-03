@@ -5,13 +5,8 @@ set -e
 #version: 1.5.0
 #name: flac
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists flac 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libFLAC.a" ] ); then
-    echo "[SKIPPED] flac already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "flac" "$INSTALL_PREFIX/lib/libFLAC.a" "flac"
 
 wget https://ftp.osuosl.org/pub/xiph/releases/flac/flac-1.5.0.tar.xz
 tar -xJf flac-1.5.0.tar.xz

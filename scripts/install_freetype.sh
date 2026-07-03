@@ -5,13 +5,8 @@ set -e
 #version: 2.14.3
 #name: freetype
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists freetype2 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libfreetype.a" ] ); then
-    echo "[SKIPPED] freetype already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "freetype2" "$INSTALL_PREFIX/lib/libfreetype.a" "freetype"
 
 wget https://github.com/libsdl-org/freetype/archive/refs/tags/VER-2-14-3.zip -O freetype-2.14.3.zip
 unzip -o freetype-2.14.3.zip

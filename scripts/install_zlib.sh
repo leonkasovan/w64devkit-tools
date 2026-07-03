@@ -5,13 +5,8 @@ set -e
 #version: 1.3.2
 #name: zlib
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists zlib 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libz.a" ] ); then
-    echo "[SKIPPED] zlib already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "zlib" "$INSTALL_PREFIX/lib/libz.a" "zlib"
 
 wget https://github.com/madler/zlib/archive/refs/tags/v1.3.2.zip -O zlib-v1.3.2.zip
 unzip -o zlib-v1.3.2.zip

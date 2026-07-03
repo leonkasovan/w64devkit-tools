@@ -5,13 +5,8 @@ set -e
 #version: 1.0.8
 #name: bz2
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists bzip2 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libbz2.a" ] ); then
-    echo "[SKIPPED] bz2 already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "bzip2" "$INSTALL_PREFIX/lib/libbz2.a" "bz2"
 
 wget https://github.com/libarchive/bzip2/archive/refs/tags/bzip2-1.0.8.zip -O bzip2-1.0.8.zip
 unzip -o bzip2-1.0.8.zip

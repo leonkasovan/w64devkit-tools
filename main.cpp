@@ -231,6 +231,21 @@ static void initLibs() {
 
     NUM_LIBS = static_cast<int>(libs.size());
     selected.assign(NUM_LIBS, 0);
+
+    // Validate that all #deps: names correspond to known libraries
+    for (const auto &lib : libs) {
+        auto deps = parseDeps(lib.deps);
+        for (const auto &d : deps) {
+            bool found = false;
+            for (const auto &other : libs) {
+                if (other.name == d) { found = true; break; }
+            }
+            if (!found) {
+                std::fprintf(stderr, "warning: library '%s' depends on unknown library '%s'\n",
+                             lib.name.c_str(), d.c_str());
+            }
+        }
+    }
 }
 
 // ---- Window close ----
@@ -326,36 +341,6 @@ static void libModelSetCellValue(uiTableModelHandler *, uiTableModel *m, int row
             selectDeps(row);
         } else if (!checked) {
             selected[row] = 0;
-        }
-        uiTableModelRowChanged(m, row);
-        return;
-    }
-    // If the text column is edited, store the text into the library's
-    // description. The cell text is "name (version) - desc", so we keep
-    // the library name/version and replace only the description.
-    if (column == 1) {
-        const char *s = uiTableValueString(value);
-        if (!s) return;
-        std::lock_guard<std::mutex> lock(gLock);
-        Library &lib = libs[row];
-        std::string edited(s);
-        // If the edited text starts with the library name, try to extract a
-        // trailing description after a ' - ' separator.
-        size_t pos = edited.find(" - ");
-        if (pos != std::string::npos) {
-            // keep left part (name/version) intact, use right part as desc
-            std::string left = edited.substr(0, pos);
-            std::string right = edited.substr(pos + 3);
-            // If left starts with lib.name, don't change name/version; update desc
-            if (left.rfind(lib.name, 0) == 0) {
-                lib.desc = right;
-            } else {
-                // Otherwise, store entire edited text as description
-                lib.desc = edited;
-            }
-        } else {
-            // No separator: store entire edited text as description
-            lib.desc = edited;
         }
         uiTableModelRowChanged(m, row);
         return;
@@ -638,7 +623,7 @@ static void onInstall(uiButton *, void *) {
 
     auto *job = new InstallJob();
 
-    std::strncpy(job->prefix, prefix ? prefix : "C:/w64devkit", sizeof(job->prefix) - 1);
+    std::strncpy(job->prefix, prefix ? prefix : "C:/x86devkit", sizeof(job->prefix) - 1);
     job->prefix[sizeof(job->prefix) - 1] = '\0';
 
     // Build ini path in the res/ folder alongside the executable
@@ -709,7 +694,11 @@ static void onInstall(uiButton *, void *) {
     // Spawn a background thread so the UI stays responsive
     HANDLE hThread = reinterpret_cast<HANDLE>(
         _beginthreadex(nullptr, 0, installThread, job, 0, nullptr));
-    if (hThread) {
+    if (!hThread) {
+        delete job;
+        uiMultilineEntryAppend(outputPane, "Error: failed to create install thread.\n");
+        uiControlEnable(uiControl(installBtn));
+    } else {
         CloseHandle(hThread);
     }
 }

@@ -5,13 +5,8 @@ set -e
 #version: 0.6.5
 #name: gme
 
-# Use first argument if provided, otherwise use default
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists libgme 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libgme.a" ] ); then
-    echo "[SKIPPED] gme already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "libgme" "$INSTALL_PREFIX/lib/libgme.a" "gme"
 
 wget https://github.com/libgme/game-music-emu/releases/download/0.6.5/libgme-0.6.5-src.zip
 unzip -o libgme-0.6.5-src.zip
