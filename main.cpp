@@ -615,9 +615,10 @@ static bool isUnsafePrefix(const char *s) {
 }
 
 static void onInstall(uiButton *, void *) {
-    const char *prefix = uiEntryText(prefixEntry);
+    char *prefix = uiEntryText(prefixEntry);
     if (isUnsafePrefix(prefix)) {
         uiMultilineEntryAppend(outputPane, "Error: install prefix contains invalid characters.\n");
+        uiFreeText(prefix);
         return;
     }
 
@@ -625,6 +626,7 @@ static void onInstall(uiButton *, void *) {
 
     std::strncpy(job->prefix, prefix ? prefix : "C:/x86devkit", sizeof(job->prefix) - 1);
     job->prefix[sizeof(job->prefix) - 1] = '\0';
+    uiFreeText(prefix);
 
     // Build ini path in the res/ folder alongside the executable
     {
