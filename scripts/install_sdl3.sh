@@ -5,12 +5,8 @@ set -e
 #version: 3.2.8
 #name: sdl3
 
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists sdl3 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libSDL3.a" ] ); then
-    echo "[SKIPPED] sdl3 already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "sdl3" "$INSTALL_PREFIX/lib/libSDL3.a" "sdl3"
 
 wget https://github.com/libsdl-org/SDL/archive/refs/tags/release-3.2.8.zip -O sdl3-3.2.8.zip
 unzip -o sdl3-3.2.8.zip

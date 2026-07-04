@@ -5,12 +5,8 @@ set -e
 #version: 10.45
 #name: pcre2
 
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists libpcre2-8 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libpcre2-8.a" ] ); then
-    echo "[SKIPPED] pcre2 already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "libpcre2-8" "$INSTALL_PREFIX/lib/libpcre2-8.a" "pcre2"
 
 wget https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.45/pcre2-10.45.tar.gz -O pcre2-10.45.tar.gz
 tar -xf pcre2-10.45.tar.gz

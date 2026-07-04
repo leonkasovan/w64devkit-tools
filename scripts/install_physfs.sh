@@ -5,12 +5,8 @@ set -e
 #version: 3.2.0
 #name: physfs
 
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists physfs 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libphysfs.a" ] ); then
-    echo "[SKIPPED] physfs already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "physfs" "$INSTALL_PREFIX/lib/libphysfs.a" "physfs"
 
 wget https://github.com/icculus/physfs/archive/refs/tags/release-3.2.0.tar.gz -O physfs-3.2.0.tar.gz
 tar -xf physfs-3.2.0.tar.gz

@@ -5,12 +5,8 @@ set -e
 #version: 2.6.4
 #name: xml
 
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists expat 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libexpat.a" ] ); then
-    echo "[SKIPPED] xml already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "expat" "$INSTALL_PREFIX/lib/libexpat.a" "xml"
 
 wget https://github.com/libexpat/libexpat/releases/download/R_2_6_4/expat-2.6.4.tar.gz -O expat-2.6.4.tar.gz
 tar -xf expat-2.6.4.tar.gz

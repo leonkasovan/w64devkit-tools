@@ -5,12 +5,8 @@ set -e
 #version: 1.50.0
 #name: libuv
 
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists libuv 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libuv.a" ] ); then
-    echo "[SKIPPED] libuv already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "libuv" "$INSTALL_PREFIX/lib/libuv.a" "libuv"
 
 wget https://github.com/libuv/libuv/archive/refs/tags/v1.50.0.tar.gz -O libuv-1.50.0.tar.gz
 tar -xf libuv-1.50.0.tar.gz

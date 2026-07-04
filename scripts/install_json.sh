@@ -5,12 +5,8 @@ set -e
 #version: 3.11.3
 #name: json
 
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && [ -f "$INSTALL_PREFIX/include/nlohmann/json.hpp" ]; then
-    echo "[SKIPPED] json already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "" "$INSTALL_PREFIX/include/nlohmann/json.hpp" "json"
 
 wget https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.tar.gz -O json-3.11.3.tar.gz
 tar -xf json-3.11.3.tar.gz

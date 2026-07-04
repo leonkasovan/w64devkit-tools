@@ -5,12 +5,8 @@ set -e
 #version: 1.5.0
 #name: webp
 
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists libwebp 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libwebp.a" ] ); then
-    echo "[SKIPPED] libwebp already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "libwebp" "$INSTALL_PREFIX/lib/libwebp.a" "webp"
 
 wget https://github.com/webmproject/libwebp/archive/refs/tags/v1.5.0.tar.gz -O libwebp-1.5.0.tar.gz
 tar -xf libwebp-1.5.0.tar.gz

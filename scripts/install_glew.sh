@@ -5,12 +5,8 @@ set -e
 #version: 2.2.0
 #name: glew
 
-INSTALL_PREFIX="${1:-C:/w64devkit}"
-FORCE_UPDATE="${2:-false}"
-
-if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists glew 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libglew32s.a" ] ); then
-    echo "[SKIPPED] glew already installed"; exit 0
-fi
+source "$(dirname "$0")/common.sh"
+skip_if_installed "glew" "$INSTALL_PREFIX/lib/libglew32s.a" "glew"
 
 wget https://downloads.sourceforge.net/project/glew/glew/2.2.0/glew-2.2.0.zip -O glew-2.2.0.zip || \
 wget http://downloads.sourceforge.net/project/glew/glew/2.2.0/glew-2.2.0.zip -O glew-2.2.0.zip
