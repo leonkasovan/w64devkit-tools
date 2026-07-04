@@ -3,7 +3,7 @@
 # Uses pkg-config when available, falls back to known library flags.
 
 set -e
-INSTALL_PREFIX="${1:-C:/x86devkit}"
+INSTALL_PREFIX="${1:-C:/w64devkit}"
 CC="${CC:-$INSTALL_PREFIX/bin/g++}"
 FAILED=0
 PASSED=0

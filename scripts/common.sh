@@ -3,7 +3,7 @@
 # Source this at the top of each install_*.sh script.
 # Provides: INSTALL_PREFIX, FORCE_UPDATE, skip_if_installed()
 
-INSTALL_PREFIX="${1:-C:/x86devkit}"
+INSTALL_PREFIX="${1:-C:/w64devkit}"
 FORCE_UPDATE="${2:-false}"
 
 skip_if_installed() {
