@@ -3,10 +3,14 @@ set -e
 #deps: none
 #desc: JPEG image library (libjpeg-turbo)
 #version: 3.1.0
-#name: libjpeg
+#name: jpeg
 
-source "$(dirname "$0")/common.sh"
-skip_if_installed "libjpeg" "$INSTALL_PREFIX/lib/libjpeg.a" "libjpeg"
+INSTALL_PREFIX="${1:-C:/w64devkit}"
+FORCE_UPDATE="${2:-false}"
+
+if [ "$FORCE_UPDATE" != "true" ] && ( pkg-config --exists libjpeg 2>/dev/null || [ -f "$INSTALL_PREFIX/lib/libjpeg.a" ] ); then
+    echo "[SKIPPED] libjpeg already installed"; exit 0
+fi
 
 wget https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.1.0/libjpeg-turbo-3.1.0.tar.gz -O libjpeg-turbo-3.1.0.tar.gz
 tar -xf libjpeg-turbo-3.1.0.tar.gz

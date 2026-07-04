@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-#deps: sdl2, png, libwebp, libjpeg
+#deps: sdl2, png, webp, jpeg
 #desc: SDL2 image loading library
 #version: 2.8.12
 #name: sdl2image

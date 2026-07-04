@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-#deps: zlib bz2
+#deps: zlib, bz2
 #desc: Font rendering library
 #version: 2.14.3
 #name: freetype
