@@ -59,6 +59,8 @@ run_test "glew"      "glew"      "glew"           ""
 run_test "harfbuzz"  "harfbuzz"  "harfbuzz"       -lfreetype
 run_test "jpeg"      "jpeg"      "libjpeg"        ""
 run_test "json"      "json"      "nlohmann_json"  ""
+run_test "lzma"      "lzma"      "liblzma"        ""
+run_test "minizip"   "minizip"   "minizip"        -lz
 run_test "libuv"     "libuv"     "libuv"          ""
 run_test "mpg123"    "mpg123"    "libmpg123"      ""
 run_test "ogg"       "ogg"       "ogg"            ""
