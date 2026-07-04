@@ -27,7 +27,7 @@ unzip -o opusfile-0.12.zip
   export PKG_CONFIG="$(command -v pkg-config)"
   export DEPS_CFLAGS="-I$INSTALL_PREFIX/include -I$INSTALL_PREFIX/include/opus"
   export DEPS_LIBS="-L$INSTALL_PREFIX/lib -lopus -logg"
-  ./configure CC=gcc --build=$(gcc -dumpmachine) --host=$(gcc -dumpmachine) --disable-http --disable-examples --disable-doc --disable-shared --prefix="$INSTALL_PREFIX"
+  ./configure CC=gcc --build=$(gcc -dumpmachine) --host=$(gcc -dumpmachine) --disable-maintainer-mode --disable-http --disable-examples --disable-doc --disable-shared --prefix="$INSTALL_PREFIX"
   make -j8
   make install
 )
