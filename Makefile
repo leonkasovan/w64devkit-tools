@@ -69,10 +69,16 @@ LIBUI_CFLAGS := -I$(LIBUI_DIR) \
 # ---------------------------------------------------------------------------
 .PHONY: all clean
 
-all: w64devkit-tools.exe
+ifeq ($(config),Debug)
+TARGET := w64devkit-tools-debug.exe
+else
+TARGET := w64devkit-tools.exe
+endif
+
+all: $(TARGET)
 
 # -- Final executable --
-w64devkit-tools.exe: $(BUILD_DIR)/main.o $(BUILD_DIR)/libui.a $(BUILD_DIR)/resources.o | $(BUILD_DIR)
+$(TARGET): $(BUILD_DIR)/main.o $(BUILD_DIR)/libui.a $(BUILD_DIR)/resources.o | $(BUILD_DIR)
 	$(CXX) -o $@ $(BUILD_DIR)/main.o $(BUILD_DIR)/libui.a $(BUILD_DIR)/resources.o \
 		$(CXXFLAGS) $(LDFLAGS) \
 		-luser32 -lkernel32 -lgdi32 -lcomctl32 -luxtheme -lmsimg32 \

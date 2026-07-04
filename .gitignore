@@ -15,5 +15,5 @@ build/
 .DS_Store
 Thumbs.db
 res/installed.ini
-gdb.log
+*.log
 build*/
