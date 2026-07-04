@@ -287,19 +287,6 @@ static void onDeselectAll(uiButton *, void *) {
     }
 }
 
-static void onLibRowClicked(uiTable *t, int row, void *data) {
-    (void)t; (void)data;
-    if (row < 0 || row >= NUM_LIBS) return;
-    if (!selected[row]) {
-        selected[row] = 1;
-        selectDeps(row);
-    } else {
-        selected[row] = 0;
-    }
-    if (libTableModel)
-        uiTableModelRowChanged(libTableModel, row);
-}
-
 // ---- Table model helpers ----
 static int libModelNumColumns(uiTableModelHandler *, uiTableModel *) {
     return 3;
@@ -624,7 +611,7 @@ static void onInstall(uiButton *, void *) {
 
     auto *job = new InstallJob();
 
-    std::strncpy(job->prefix, prefix ? prefix : "C:/x86devkit", sizeof(job->prefix) - 1);
+    std::strncpy(job->prefix, prefix ? prefix : "C:/w64devkit", sizeof(job->prefix) - 1);
     job->prefix[sizeof(job->prefix) - 1] = '\0';
     uiFreeText(prefix);
 
@@ -735,7 +722,7 @@ int main() {
 
     uiBoxAppend(hbox, uiControl(uiNewLabel("Install prefix:")), 0);
     prefixEntry = uiNewEntry();
-    uiEntrySetText(prefixEntry, "C:/x86devkit");
+    uiEntrySetText(prefixEntry, "C:/w64devkit");
     uiBoxAppend(hbox, uiControl(prefixEntry), 1);
 
     uiBoxAppend(vbox, uiControl(uiNewHorizontalSeparator()), 0);
@@ -759,8 +746,8 @@ int main() {
     uiTableColumnSetWidth(libTable, 1, 400);
     uiTableColumnSetWidth(libTable, 2, 160);
 
-    // Allow clicking a row to toggle the checkbox.
-    uiTableOnRowClicked(libTable, onLibRowClicked, nullptr);
+    // Checkbox toggling is handled by libModelSetCellValue (column 0)
+    // which also automatically selects dependencies.
 
     // Button row
     auto *btnBox = uiNewHorizontalBox();

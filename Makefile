@@ -57,11 +57,11 @@ LIBUI_OBJS := $(LIBUI_COMMON_C_OBJ) $(LIBUI_COMMON_CPP_OBJ) $(LIBUI_WIN_OBJ)
 # libui compile flags (matches CMakeLists.txt)
 # ---------------------------------------------------------------------------
 LIBUI_CXXFLAGS := -I$(LIBUI_DIR) \
-                  -Dlibui_EXPORTS -D_UI_STATIC \
+                  -D_UI_STATIC \
                   -Wno-unused-parameter -Wno-switch -Wno-deprecated-declarations
 
 LIBUI_CFLAGS := -I$(LIBUI_DIR) \
-                -Dlibui_EXPORTS -D_UI_STATIC \
+                -D_UI_STATIC \
                 -Wno-unused-parameter -Wno-switch -Wno-deprecated-declarations
 
 # ---------------------------------------------------------------------------
