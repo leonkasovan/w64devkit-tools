@@ -3,7 +3,7 @@
 # Uses pkg-config when available, falls back to known library flags.
 
 set -e
-INSTALL_PREFIX="${1:-C:/x86devkit}"
+INSTALL_PREFIX="${1:-C:/w64devkit}"
 CC="${CC:-$INSTALL_PREFIX/bin/g++}"
 FAILED=0
 PASSED=0
@@ -59,6 +59,8 @@ run_test "glew"      "glew"      "glew"           ""
 run_test "harfbuzz"  "harfbuzz"  "harfbuzz"       -lfreetype
 run_test "jpeg"      "jpeg"      "libjpeg"        ""
 run_test "json"      "json"      "nlohmann_json"  ""
+run_test "lzma"      "lzma"      "liblzma"        ""
+run_test "minizip"   "minizip"   "minizip"        -lz
 run_test "libuv"     "libuv"     "libuv"          ""
 run_test "mpg123"    "mpg123"    "libmpg123"      ""
 run_test "ogg"       "ogg"       "ogg"            ""

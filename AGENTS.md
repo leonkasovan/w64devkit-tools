@@ -21,7 +21,7 @@ Requires MinGW-w64 (w64devkit). **Cannot build on Linux/macOS** — bundled libu
   `skip_if_installed()` helper — never duplicate that boilerplate.
 - **Shared preamble:** `scripts/common.sh` — provides `INSTALL_PREFIX`, `FORCE_UPDATE`,
   and `skip_if_installed(pkgconfig_name, lib_path, display_name)`.
-- **Default prefix** (hardcoded): `C:/x86devkit`.
+- **Default prefix** (hardcoded): `C:/w64devkit`.
 - **Installed tracking:** `res/installed.ini` (gitignored). Format: `C:/path=lib1 lib2 ...`
 
 ## Quirks

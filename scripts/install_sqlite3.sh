@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-#deps: none
+#deps: json
 #desc: Embedded SQL database engine
 #version: 3.50.0
 #name: sqlite3
@@ -12,10 +12,25 @@ wget https://www.sqlite.org/2025/sqlite-autoconf-3500000.tar.gz -O sqlite3-3.50.
 tar -xf sqlite3-3.50.0.tar.gz
 (
   cd sqlite-autoconf-3500000
-  export PATH="$INSTALL_PREFIX/bin:$PATH"
-  ./configure --prefix="$INSTALL_PREFIX" --enable-static --disable-shared
+  mkdir -p /tmp
+  # Cache tool paths for autotools (avoids PATH format issues with MSYS2)
+  export ac_cv_path_GREP="$(command -v grep)"
+  export ac_cv_path_EGREP="$(command -v grep) -E"
+  export ac_cv_path_FGREP="$(command -v grep) -F"
+  export ac_cv_prog_AWK="$(command -v awk)"
+  export ac_cv_path_SED="$(command -v sed)"
+  # Set LD and other binutils env vars directly (libtool checks $LD first)
+  export LD="$(command -v ld)"
+  export AR="$(command -v ar)"
+  export AS="$(command -v as)"
+  export DLLTOOL="$(command -v dlltool)"
+  export NM="$(command -v nm)"
+  export OBJDUMP="$(command -v objdump)"
+  export RANLIB="$(command -v ranlib)"
+  export STRIP="$(command -v strip)"
+  ./configure CC=gcc --build=$(gcc -dumpmachine) --host=$(gcc -dumpmachine) --prefix="$INSTALL_PREFIX" --enable-static --disable-shared --disable-readline
   make -j8
   make install
 )
-rm -r sqlite-autoconf-3500000 sqlite3-3.50.0.tar.gz
+rm -rf sqlite-autoconf-3500000 sqlite3-3.50.0.tar.gz
 echo "Test: pkg-config --cflags --libs sqlite3"

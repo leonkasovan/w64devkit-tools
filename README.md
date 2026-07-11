@@ -6,7 +6,7 @@ A native Windows GUI application (libui-ng) for managing and installing librarie
 
 - Browse 20+ libraries (zlib, SDL2, curl, freetype, opus, etc.)
 - Automatic dependency resolution and topological install order
-- Installs to a user-specified prefix (default: `C:/x86devkit`)
+- Installs to a user-specified prefix (default: `C:/w64devkit`)
 - Tracks installed libraries per prefix in `res/installed.ini`
 - Streaming output display during script execution
 
