@@ -36,12 +36,25 @@ struct Library {
     int level;              // 0+ dependency level
 };
 
+// ---- Test database ----
+
+struct Test {
+    std::string desc;
+    std::string deps;       // comma-separated library names this test needs
+    std::string script;
+};
+
 // ---- Runtime-populated globals ----
 
 static std::vector<Library> libs;
 static std::vector<int> selected;           // 0/1 flags
 static int NUM_LIBS = 0;
-static std::mutex gLock;                    // guards libs/selected across threads
+
+static std::vector<Test> tests;
+static std::vector<int> testSelected;       // 0/1 flags
+static int NUM_TESTS = 0;
+
+static std::mutex gLock;                    // guards libs/selected/tests/testSelected across threads
 
 // ---- UI controls ----
 
@@ -49,8 +62,11 @@ static uiWindow *window = nullptr;
 static uiEntry *prefixEntry = nullptr;
 static uiTable *libTable = nullptr;
 static uiTableModel *libTableModel = nullptr;
+static uiTable *testTable = nullptr;
+static uiTableModel *testTableModel = nullptr;
 static uiCheckbox *forceUpdateCb = nullptr;
 static uiButton *installBtn = nullptr;
+static uiButton *buildTestBtn = nullptr;
 static uiMultilineEntry *outputPane = nullptr;
 
 // ---- Install job (allocated on heap for background thread) ----
@@ -248,6 +264,61 @@ static void initLibs() {
     }
 }
 
+// ---- Test discovery ----
+
+static std::vector<std::string> parseTestDeps(const std::string &raw) {
+    if (raw.empty() || raw == "none")
+        return {};
+    std::vector<std::string> result;
+    std::istringstream stream(raw);
+    std::string token;
+    while (stream >> token) {
+        while (!token.empty() && (token.back() == ',' || token.back() == ';'))
+            token.pop_back();
+        if (!token.empty())
+            result.push_back(token);
+    }
+    return result;
+}
+
+static void initTests() {
+    WIN32_FIND_DATAA ffd;
+    HANDLE hFind = FindFirstFileA("tests/test_*.sh", &ffd);
+    if (hFind == INVALID_HANDLE_VALUE)
+        return;
+
+    std::vector<Test> temp;
+    do {
+        Test test;
+        test.script = ffd.cFileName;          // e.g. "test_sdl2mixer.sh"
+
+        // read the whole file to extract description and deps from headers
+        std::ifstream file(("tests/" + test.script).c_str());
+        if (!file.is_open()) continue;
+        std::string content((std::istreambuf_iterator<char>(file)),
+                             std::istreambuf_iterator<char>());
+
+        
+        test.desc  = getField(content, "#desc:");
+        std::string depsRaw = getField(content, "#deps:");
+        auto depList = parseDeps(depsRaw);
+        for (size_t i = 0; i < depList.size(); i++) {
+            if (i > 0) test.deps += ", ";
+            test.deps += depList[i];
+        }
+
+        // fallback if headers are missing
+        if (test.desc.empty()) test.desc = "Test for " + test.script;
+
+        temp.push_back(test);
+    } while (FindNextFileA(hFind, &ffd));
+    FindClose(hFind);
+
+    tests = std::move(temp);
+    NUM_TESTS = static_cast<int>(tests.size());
+    testSelected.assign(NUM_TESTS, 0);
+}
+
 // ---- Window close ----
 
 static int onClosing(uiWindow *, void *) {
@@ -284,6 +355,35 @@ static void onDeselectAll(uiButton *, void *) {
         selected[i] = 0;
         if (libTableModel)
             uiTableModelRowChanged(libTableModel, i);
+    }
+}
+
+// ---- Test selection helpers ----
+
+static void onSelectAllTests(uiButton *, void *) {
+    for (int i = 0; i < NUM_TESTS; i++) {
+        testSelected[i] = 1;
+        if (testTableModel)
+            uiTableModelRowChanged(testTableModel, i);
+        // also select library dependencies
+        auto deps = parseTestDeps(tests[i].deps);
+        for (const auto &depName : deps) {
+            for (int j = 0; j < NUM_LIBS; j++) {
+                if (libs[j].name == depName && !selected[j]) {
+                    selected[j] = 1;
+                    if (libTableModel)
+                        uiTableModelRowChanged(libTableModel, j);
+                }
+            }
+        }
+    }
+}
+
+static void onDeselectAllTests(uiButton *, void *) {
+    for (int i = 0; i < NUM_TESTS; i++) {
+        testSelected[i] = 0;
+        if (testTableModel)
+            uiTableModelRowChanged(testTableModel, i);
     }
 }
 
@@ -340,6 +440,70 @@ static uiTableModelHandler libTableModelHandler = {
     libModelNumRows,
     libModelCellValue,
     libModelSetCellValue,
+};
+
+// ---- Test table model helpers ----
+
+static int testModelNumColumns(uiTableModelHandler *, uiTableModel *) {
+    return 3;
+}
+
+static uiTableValueType testModelColumnType(uiTableModelHandler *, uiTableModel *, int column) {
+    return column == 0 ? uiTableValueTypeInt : uiTableValueTypeString;
+}
+
+static int testModelNumRows(uiTableModelHandler *, uiTableModel *) {
+    return NUM_TESTS;
+}
+
+static uiTableValue *testModelCellValue(uiTableModelHandler *, uiTableModel *, int row, int column) {
+    if (row < 0 || row >= NUM_TESTS)
+        return uiNewTableValueString("");
+    if (column == 0)
+        return uiNewTableValueInt(testSelected[row]);
+
+    const Test &test = tests[row];
+    if (column == 2)
+        return uiNewTableValueString(test.deps.c_str());
+
+    std::string text = test.script;
+    if (!test.desc.empty())
+        text += ": " + test.desc;
+    return uiNewTableValueString(text.c_str());
+}
+
+static void testModelSetCellValue(uiTableModelHandler *, uiTableModel *m, int row, int column, const uiTableValue *value) {
+    if (row < 0 || row >= NUM_TESTS || value == nullptr)
+        return;
+    if (column == 0) {
+        bool checked = uiTableValueInt(value) != 0;
+        if (checked && !testSelected[row]) {
+            testSelected[row] = 1;
+            // auto-select library dependencies
+            auto deps = parseTestDeps(tests[row].deps);
+            for (const auto &depName : deps) {
+                for (int i = 0; i < NUM_LIBS; i++) {
+                    if (libs[i].name == depName && !selected[i]) {
+                        selected[i] = 1;
+                        if (libTableModel)
+                            uiTableModelRowChanged(libTableModel, i);
+                    }
+                }
+            }
+        } else if (!checked) {
+            testSelected[row] = 0;
+        }
+        uiTableModelRowChanged(m, row);
+        return;
+    }
+}
+
+static uiTableModelHandler testTableModelHandler = {
+    testModelNumColumns,
+    testModelColumnType,
+    testModelNumRows,
+    testModelCellValue,
+    testModelSetCellValue,
 };
 
 static bool fileExistsW(const wchar_t *path) {
@@ -406,6 +570,7 @@ static void applyUiUpdate(void *data) {
     }
     if (upd->done) {
         uiControlEnable(uiControl(installBtn));
+        uiControlEnable(uiControl(buildTestBtn));
     }
     delete upd;
 }
@@ -490,8 +655,13 @@ static int runScriptStreamed(const char *shell, const char *script, const char *
         return -1;
     }
 
-    // Convert to wide strings for CreateProcessW (w64devkit.c style)
-    std::wstring wdir = L"scripts";
+    // check script name if contains "test" and if so, set the working directory to "tests" instead of "scripts"
+    std::wstring wdir;
+    if (std::string(script).find("test") != std::string::npos) {
+        wdir = L"tests";
+    } else {
+        wdir = L"scripts";
+    }
 
     std::string cmdLineA = "\"" + toNativePath(shell) + "\" \"" + toBashPath(script) + "\" \"" + toBashPath(prefix) + "\" \"" + forceUpdate + "\"";
     int wlen = MultiByteToWideChar(CP_UTF8, 0, cmdLineA.c_str(), -1, NULL, 0);
@@ -595,6 +765,55 @@ static unsigned int __stdcall installThread(void *data) {
     return 0;
 }
 
+// ---- Build test thread ----
+// Runs test scripts (scripts/test_*.sh) similar to installThread
+
+static unsigned int __stdcall buildTestThread(void *data) {
+    auto *job = static_cast<InstallJob *>(data);  // reuse InstallJob struct
+
+    for (int i = 0; i < job->count; i++) {
+        int testIdx = job->order[i];
+
+        std::string testScript;
+        {
+            std::lock_guard<std::mutex> lock(gLock);
+            testScript = tests[testIdx].script;
+        }
+
+        char msg[4096];
+        std::snprintf(msg, sizeof(msg), ">>> Building %s...\n", testScript.c_str());
+        sendUpdate(msg, -1, false);
+
+        std::string shell = std::string(job->prefix);
+        if (!shell.empty() && shell.back() != '/' && shell.back() != '\\')
+            shell += "/bin/bash.exe";
+        else
+            shell += "bin/bash.exe";
+
+        const char *forceStr = "false";  // not used for tests
+        int rc = runScriptStreamed(shell.c_str(), testScript.c_str(), job->prefix, forceStr);
+        if (rc < 0) {
+            std::snprintf(msg, sizeof(msg), "!!! Failed to start build process (error %d)\n", rc);
+            sendUpdate(msg, -1, true);
+            delete job;
+            return 1;
+        }
+        if (rc != 0) {
+            std::snprintf(msg, sizeof(msg), "!!! %s FAILED (exit code %d)\n", testScript.c_str(), rc);
+            sendUpdate(msg, -1, true);
+            delete job;
+            return 1;
+        }
+
+        std::snprintf(msg, sizeof(msg), "<<< %s built successfully\n", testScript.c_str());
+        sendUpdate(msg, -1, false);
+    }
+
+    sendUpdate("\n=== All selected tests built successfully ===\n", -1, true);
+    delete job;
+    return 0;
+}
+
 // ---- Install button handler ----
 
 static bool isUnsafePrefix(const char *s) {
@@ -692,6 +911,76 @@ static void onInstall(uiButton *, void *) {
     }
 }
 
+// ---- Build test button handler ----
+
+static void onBuildTests(uiButton *, void *) {
+    char *prefix = uiEntryText(prefixEntry);
+    if (isUnsafePrefix(prefix)) {
+        uiMultilineEntryAppend(outputPane, "Error: install prefix contains invalid characters.\n");
+        uiFreeText(prefix);
+        return;
+    }
+
+    auto *job = new InstallJob();  // reuse InstallJob struct
+
+    std::strncpy(job->prefix, prefix ? prefix : "C:/w64devkit", sizeof(job->prefix) - 1);
+    job->prefix[sizeof(job->prefix) - 1] = '\0';
+    uiFreeText(prefix);
+
+    // Build ini path in the res/ folder alongside the executable
+    {
+        char exePath[MAX_PATH];
+        DWORD len = GetModuleFileNameA(NULL, exePath, MAX_PATH);
+        if (len > 0 && len < MAX_PATH) {
+            std::string dir(exePath);
+            size_t sep = dir.find_last_of("\\/");
+            if (sep != std::string::npos) {
+                dir.resize(sep + 1);
+                dir += "res\\installed.ini";
+                std::strncpy(job->iniPath, dir.c_str(), sizeof(job->iniPath) - 1);
+            }
+        }
+        if (!job->iniPath[0])
+            std::strncpy(job->iniPath, "res/installed.ini", sizeof(job->iniPath) - 1);
+    }
+
+    job->forceUpdate = 0;  // not used for tests
+
+    // Clear the output pane
+    uiMultilineEntrySetText(outputPane, "");
+
+    // Build the list of selected tests
+    job->order.resize(NUM_TESTS);
+    for (int i = 0; i < NUM_TESTS; i++) {
+        if (testSelected[i]) {
+            job->order[job->count++] = i;
+        }
+    }
+
+    if (job->count == 0) {
+        uiMultilineEntryAppend(outputPane, "No tests selected.\n");
+        delete job;
+        return;
+    }
+
+    char header[256];
+    std::snprintf(header, sizeof(header), "=== Building %d test%s ===\n",
+                  job->count, job->count > 1 ? "s" : "");
+    uiMultilineEntryAppend(outputPane, header);
+    uiControlDisable(uiControl(buildTestBtn));
+
+    // Spawn a background thread so the UI stays responsive
+    HANDLE hThread = reinterpret_cast<HANDLE>(
+        _beginthreadex(nullptr, 0, buildTestThread, job, 0, nullptr));
+    if (!hThread) {
+        delete job;
+        uiMultilineEntryAppend(outputPane, "Error: failed to create build thread.\n");
+        uiControlEnable(uiControl(buildTestBtn));
+    } else {
+        CloseHandle(hThread);
+    }
+}
+
 // ---- Entry point ----
 
 int main() {
@@ -707,15 +996,17 @@ int main() {
 
     // Dynamically discover libraries from scripts/ directory
     initLibs();
+    // Dynamically discover tests from tests/ directory
+    initTests();
 
-    window = uiNewWindow("w64devkit Tools", 800, 600, 0);
+    window = uiNewWindow("w64devkit Tools", 900, 700, 0);
     uiWindowSetMargined(window, 1);
 
     auto *vbox = uiNewVerticalBox();
     uiBoxSetPadded(vbox, 1);
     uiWindowSetChild(window, uiControl(vbox));
 
-    // Prefix row
+    // Prefix row (shared across tabs)
     auto *hbox = uiNewHorizontalBox();
     uiBoxSetPadded(hbox, 1);
     uiBoxAppend(vbox, uiControl(hbox), 0);
@@ -727,9 +1018,17 @@ int main() {
 
     uiBoxAppend(vbox, uiControl(uiNewHorizontalSeparator()), 0);
 
-    // Library selection table
+    // Tab control
+    auto *tab = uiNewTab();
+    uiBoxAppend(vbox, uiControl(tab), 1);
+
+    // ===== INSTALL TAB =====
+    auto *installVBox = uiNewVerticalBox();
+    uiBoxSetPadded(installVBox, 1);
+    uiTabAppend(tab, "Install", uiControl(installVBox));
+
     auto *libGroup = uiNewGroup("Libraries");
-    uiBoxAppend(vbox, uiControl(libGroup), 1);
+    uiBoxAppend(installVBox, uiControl(libGroup), 1);
 
     uiTableParams params{};
     params.Model = uiNewTableModel(&libTableModelHandler);
@@ -746,30 +1045,67 @@ int main() {
     uiTableColumnSetWidth(libTable, 1, 400);
     uiTableColumnSetWidth(libTable, 2, 160);
 
-    // Checkbox toggling is handled by libModelSetCellValue (column 0)
-    // which also automatically selects dependencies.
-
-    // Button row
-    auto *btnBox = uiNewHorizontalBox();
-    uiBoxSetPadded(btnBox, 1);
-    uiBoxAppend(vbox, uiControl(btnBox), 0);
+    // Install tab button row
+    auto *installBtnBox = uiNewHorizontalBox();
+    uiBoxSetPadded(installBtnBox, 1);
+    uiBoxAppend(installVBox, uiControl(installBtnBox), 0);
 
     auto *selectAllBtn = uiNewButton(" Select All ");
     uiButtonOnClicked(selectAllBtn, onSelectAll, nullptr);
-    uiBoxAppend(btnBox, uiControl(selectAllBtn), 0);
+    uiBoxAppend(installBtnBox, uiControl(selectAllBtn), 0);
 
     auto *deselectAllBtn = uiNewButton(" Deselect All ");
     uiButtonOnClicked(deselectAllBtn, onDeselectAll, nullptr);
-    uiBoxAppend(btnBox, uiControl(deselectAllBtn), 0);
+    uiBoxAppend(installBtnBox, uiControl(deselectAllBtn), 0);
 
     installBtn = uiNewButton(" Install Selected ");
     uiButtonOnClicked(installBtn, onInstall, nullptr);
-    uiBoxAppend(btnBox, uiControl(installBtn), 0);
+    uiBoxAppend(installBtnBox, uiControl(installBtn), 0);
 
     forceUpdateCb = uiNewCheckbox("Force Update");
-    uiBoxAppend(btnBox, uiControl(forceUpdateCb), 0);
+    uiBoxAppend(installBtnBox, uiControl(forceUpdateCb), 0);
 
-    // Output
+    // ===== TEST TAB =====
+    auto *testVBox = uiNewVerticalBox();
+    uiBoxSetPadded(testVBox, 1);
+    uiTabAppend(tab, "Test", uiControl(testVBox));
+
+    auto *testGroup = uiNewGroup("Tests");
+    uiBoxAppend(testVBox, uiControl(testGroup), 1);
+
+    uiTableParams testParams{};
+    testParams.Model = uiNewTableModel(&testTableModelHandler);
+    testTableModel = testParams.Model;
+    testTable = uiNewTable(&testParams);
+    uiTableHeaderSetVisible(testTable, 1);
+    uiTableAppendCheckboxColumn(testTable, "#", 0, uiTableModelColumnAlwaysEditable);
+    uiTableAppendTextColumn(testTable, "Description", 1, uiTableModelColumnNeverEditable, nullptr);
+    uiTableAppendTextColumn(testTable, "Dependencies", 2, uiTableModelColumnNeverEditable, nullptr);
+
+    uiGroupSetChild(testGroup, uiControl(testTable));
+
+    uiTableColumnSetWidth(testTable, 0, 20);
+    uiTableColumnSetWidth(testTable, 1, 400);
+    uiTableColumnSetWidth(testTable, 2, 160);
+
+    // Test tab button row
+    auto *testBtnBox = uiNewHorizontalBox();
+    uiBoxSetPadded(testBtnBox, 1);
+    uiBoxAppend(testVBox, uiControl(testBtnBox), 0);
+
+    auto *selectAllTestsBtn = uiNewButton(" Select All ");
+    uiButtonOnClicked(selectAllTestsBtn, onSelectAllTests, nullptr);
+    uiBoxAppend(testBtnBox, uiControl(selectAllTestsBtn), 0);
+
+    auto *deselectAllTestsBtn = uiNewButton(" Deselect All ");
+    uiButtonOnClicked(deselectAllTestsBtn, onDeselectAllTests, nullptr);
+    uiBoxAppend(testBtnBox, uiControl(deselectAllTestsBtn), 0);
+
+    buildTestBtn = uiNewButton(" Build Selected ");
+    uiButtonOnClicked(buildTestBtn, onBuildTests, nullptr);
+    uiBoxAppend(testBtnBox, uiControl(buildTestBtn), 0);
+
+    // Output (shared, below tabs)
     uiBoxAppend(vbox, uiControl(uiNewLabel("Output:")), 0);
     outputPane = uiNewMultilineEntry();
     uiMultilineEntrySetReadOnly(outputPane, 1);
@@ -782,6 +1118,10 @@ int main() {
     if (libTableModel) {
         uiFreeTableModel(libTableModel);
         libTableModel = nullptr;
+    }
+    if (testTableModel) {
+        uiFreeTableModel(testTableModel);
+        testTableModel = nullptr;
     }
     uiUninit();
     return 0;
