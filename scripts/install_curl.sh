@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-#deps: zlib, zstd, brotli, bz2
+#deps: zlib, zstd, brotli
 #desc: URL transfer library
 #version: 8.19.0
 #name: curl

@@ -1,3 +1,10 @@
 #include <nlohmann/json.hpp>
+#include <stdio.h>
+
 using json = nlohmann::json;
-int main() { json j = json::parse("{\"a\":1}"); return j["a"] != 1; }
+
+int main(void) {
+    json j = json::parse("{\"a\":1}");
+    printf("nlohmann/json parsed OK\n");
+    return j["a"] != 1;
+}

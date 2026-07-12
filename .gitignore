@@ -18,6 +18,7 @@ res/installed.ini
 *.log
 *.wav
 *.mod
+*.txt
 *.opus
 *.vgz
 *.zip

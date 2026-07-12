@@ -2,8 +2,7 @@
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <image>\n", argv[0]);
         return 1;
@@ -13,7 +12,7 @@ int main(int argc, char *argv[])
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
         return 1;
     }
-    
+
     int flags = IMG_Init(
         IMG_INIT_JPG  |
         IMG_INIT_PNG  |

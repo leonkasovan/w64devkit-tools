@@ -1,2 +1,7 @@
 #include <fmt/core.h>
-int main() { fmt::print("fmt {}\n", FMT_VERSION); return 0; }
+#include <stdio.h>
+
+int main(void) {
+    fmt::print("fmt {}\n", FMT_VERSION);
+    return 0;
+}
