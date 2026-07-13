@@ -771,6 +771,17 @@ static unsigned int __stdcall installThread(void *data) {
 static unsigned int __stdcall buildTestThread(void *data) {
     auto *job = static_cast<InstallJob *>(data);  // reuse InstallJob struct
 
+    // Prepend the toolchain bin dir to PATH so scripts find gcc, pkg-config, etc.
+    {
+        std::string path = std::string(job->prefix) + "/bin";
+        const char *oldPath = getenv("PATH");
+        if (oldPath && oldPath[0]) {
+            path += ";";
+            path += oldPath;
+        }
+        SetEnvironmentVariableA("PATH", path.c_str());
+    }
+
     for (int i = 0; i < job->count; i++) {
         int testIdx = job->order[i];
 
