@@ -14,9 +14,9 @@ cmake -S zlib-1.3.2 -B build-zlib -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" -DZLI
 cmake --build build-zlib --parallel
 cmake --install build-zlib
 # The ZLIB pkg-config file says -lz but the static lib is named libzs.a.
-# Fix the .pc to match the actual filename.
+# Fix the .pc to use the exact filename so the linker picks the static lib.
 if [ -f "$INSTALL_PREFIX/lib/pkgconfig/zlib.pc" ]; then
-    sed -i 's/-lz/-lzs/' "$INSTALL_PREFIX/lib/pkgconfig/zlib.pc"
+    sed -i 's/-lz\b/-l:libzs.a/' "$INSTALL_PREFIX/lib/pkgconfig/zlib.pc"
 fi
 # CMake's find_package(ZLIB) looks for libz.a — provide a copy
 if [ -f "$INSTALL_PREFIX/lib/libzs.a" ] && [ ! -f "$INSTALL_PREFIX/lib/libz.a" ]; then
