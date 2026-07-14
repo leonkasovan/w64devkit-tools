@@ -15,7 +15,7 @@ cmake --build build-sdl2 --parallel
 cmake --install build-sdl2
 # Patch sdl2.pc to use the static library directly so consumers don't need
 # the sed workaround to force -l:libSDL2.a.
-sed -i 's/-lSDL2/-l:libSDL2.a/g' "$INSTALL_PREFIX/lib/pkgconfig/sdl2.pc"
+sed -i 's/-lSDL2\b/-l:libSDL2.a/g' "$INSTALL_PREFIX/lib/pkgconfig/sdl2.pc"
 # Remove any stray shared import lib so downstream consumers don't pull in
 # SDL2.dll at runtime.
 rm -f "$INSTALL_PREFIX/lib/libSDL2.dll.a"

@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-#deps: json
+#deps: none
 #desc: Embedded SQL database engine
 #version: 3.50.0
 #name: sqlite3
@@ -30,7 +30,25 @@ tar -xf sqlite3-3.50.0.tar.gz
   export STRIP="$(command -v strip)"
   ./configure CC=gcc --build=$(gcc -dumpmachine) --host=$(gcc -dumpmachine) --prefix="$INSTALL_PREFIX" --enable-static --disable-shared --disable-readline
   make -j8
-  make install
+  # Manual install — autotools 'install -m' fails on MinGW
+  mkdir -p "$INSTALL_PREFIX/lib" "$INSTALL_PREFIX/include"
+  cp libsqlite3.a "$INSTALL_PREFIX/lib/"
+  cp sqlite3.h "$INSTALL_PREFIX/include/"
+  cp sqlite3ext.h "$INSTALL_PREFIX/include/"
+  # Generate pkg-config file
+  mkdir -p "$INSTALL_PREFIX/lib/pkgconfig"
+  cat > "$INSTALL_PREFIX/lib/pkgconfig/sqlite3.pc" <<EOF
+prefix=$INSTALL_PREFIX
+exec_prefix=\${prefix}
+libdir=\${exec_prefix}/lib
+includedir=\${prefix}/include
+
+Name: sqlite3
+Description: SQL database engine
+Version: 3.50.0
+Libs: -L\${libdir} -lsqlite3 -lz
+Cflags: -I\${includedir} -DSQLITE_THREADSAFE=1
+EOF
 )
 rm -rf sqlite-autoconf-3500000 sqlite3-3.50.0.tar.gz
 echo "Test: pkg-config --cflags --libs sqlite3"

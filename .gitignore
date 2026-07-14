@@ -10,6 +10,7 @@ build/
 *~
 .vscode/
 .idea/
+.mimocode/
 
 # OS
 .DS_Store

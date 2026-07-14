@@ -2,6 +2,6 @@
 #include <stdio.h>
 
 int main(void) {
-    printf("xmp %s\n", xmp_get_version());
+    printf("xmp %s\n", xmp_version);
     return 0;
 }

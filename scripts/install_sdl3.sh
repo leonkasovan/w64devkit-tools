@@ -15,7 +15,7 @@ cmake --build build-sdl3 --parallel
 cmake --install build-sdl3
 # Patch sdl3.pc to use the static library directly so consumers don't need
 # the sed workaround to force -l:libSDL3.a.
-sed -i 's/-lSDL3/-l:libSDL3.a/g' "$INSTALL_PREFIX/lib/pkgconfig/sdl3.pc"
+sed -i 's/-lSDL3\b/-l:libSDL3.a/g' "$INSTALL_PREFIX/lib/pkgconfig/sdl3.pc"
 # Remove any stray shared import lib so downstream consumers don't pull in
 # SDL3.dll at runtime.
 rm -f "$INSTALL_PREFIX/lib/libSDL3.dll.a"
