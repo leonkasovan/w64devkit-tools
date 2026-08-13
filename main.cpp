@@ -644,6 +644,23 @@ static void markInstalled(const char *path, const char *prefix, const char *name
 // Launches each script via CreateProcessW (like w64devkit.c), streaming
 // stdout/stderr incrementally so the output pane stays live.
 
+// Resolve the shell used to run scripts: prefer bash.exe when the w64devkit
+// variant ships it, otherwise fall back to sh.exe (busybox ash in stock
+// w64devkit). Returns an empty string if neither exists in <prefix>/bin.
+static std::string findShell(const char *prefix) {
+    std::string base = prefix;
+    if (!base.empty() && base.back() != '/' && base.back() != '\\')
+        base += "/";
+    base += "bin/";
+    static const char *candidates[] = { "bash.exe", "sh.exe" };
+    for (const char *name : candidates) {
+        std::string shell = base + name;
+        if (GetFileAttributesA(shell.c_str()) != INVALID_FILE_ATTRIBUTES)
+            return shell;
+    }
+    return "";
+}
+
 static int runScriptStreamed(const char *shell, const char *script, const char *prefix, const char *forceUpdate) {
     SECURITY_ATTRIBUTES sa{sizeof(sa), NULL, TRUE};
     HANDLE readPipe = NULL, writePipe = NULL;
@@ -732,16 +749,21 @@ static unsigned int __stdcall installThread(void *data) {
                       libName.c_str(), libVersion.c_str());
         sendUpdate(msg, -1, false);
 
-        std::string shell = std::string(job->prefix);
-        if (!shell.empty() && shell.back() != '/' && shell.back() != '\\')
-            shell += "/bin/bash.exe";
-        else
-            shell += "bin/bash.exe";
+        std::string shell = findShell(job->prefix);
+        if (shell.empty()) {
+            std::snprintf(msg, sizeof(msg),
+                          "!!! No shell found in %s/bin (looked for bash.exe, sh.exe). "
+                          "Check the install prefix or install w64devkit.\n",
+                          job->prefix);
+            sendUpdate(msg, -1, true);
+            delete job;
+            return 1;
+        }
 
         const char *forceStr = job->forceUpdate ? "true" : "false";
         int rc = runScriptStreamed(shell.c_str(), libScript.c_str(), job->prefix, forceStr);
         if (rc < 0) {
-            std::snprintf(msg, sizeof(msg), "!!! Failed to start install process (error %d)\n", rc);
+            std::snprintf(msg, sizeof(msg), "!!! Failed to start install process '%s' (error %d)\n", shell.c_str(), rc);
             sendUpdate(msg, -1, true);
             delete job;
             return 1;
@@ -795,16 +817,21 @@ static unsigned int __stdcall buildTestThread(void *data) {
         std::snprintf(msg, sizeof(msg), ">>> Building %s...\n", testScript.c_str());
         sendUpdate(msg, -1, false);
 
-        std::string shell = std::string(job->prefix);
-        if (!shell.empty() && shell.back() != '/' && shell.back() != '\\')
-            shell += "/bin/bash.exe";
-        else
-            shell += "bin/bash.exe";
+        std::string shell = findShell(job->prefix);
+        if (shell.empty()) {
+            std::snprintf(msg, sizeof(msg),
+                          "!!! No shell found in %s/bin (looked for bash.exe, sh.exe). "
+                          "Check the install prefix or install w64devkit.\n",
+                          job->prefix);
+            sendUpdate(msg, -1, true);
+            delete job;
+            return 1;
+        }
 
         const char *forceStr = "false";  // not used for tests
         int rc = runScriptStreamed(shell.c_str(), testScript.c_str(), job->prefix, forceStr);
         if (rc < 0) {
-            std::snprintf(msg, sizeof(msg), "!!! Failed to start build process (error %d)\n", rc);
+            std::snprintf(msg, sizeof(msg), "!!! Failed to start build process '%s' (error %d)\n", shell.c_str(), rc);
             sendUpdate(msg, -1, true);
             delete job;
             return 1;

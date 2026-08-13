@@ -13,6 +13,7 @@ unzip -o bzip2-1.0.8.zip
 (
   cd bzip2-bzip2-1.0.8
   make libbz2.a
+  mkdir -p "$INSTALL_PREFIX"/lib "$INSTALL_PREFIX"/include
   cp -f libbz2.a "$INSTALL_PREFIX"/lib/
   cp -f bzlib.h "$INSTALL_PREFIX"/include/
 )
