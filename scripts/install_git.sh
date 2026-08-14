@@ -37,6 +37,10 @@ if [ "$(od -An -N2 -tx1 git-2.55.0.tar.gz | tr -d ' \n')" != "1f8b" ]; then
     echo "error: git-2.55.0.tar.gz is not a gzip archive (download failed?)"
     exit 1
 fi
+# Always build from a clean tree: a failed run leaves git-2.55.0/ behind, and
+# re-extracting over it keeps stale object files (config.o etc.), so make
+# skips recompiling and the installed binary keeps old baked-in settings.
+rm -rf git-2.55.0
 tar -xf git-2.55.0.tar.gz
 
 (
@@ -46,6 +50,11 @@ tar -xf git-2.55.0.tar.gz
   cat > config.mak <<EOF
 uname_S = MINGW
 prefix = $INSTALL_PREFIX
+# The MinGW branch defaults ETC_GITCONFIG to the relative path
+# ../etc/gitconfig (it keys off a /mingw64 prefix), which resolves to a
+# machine-wide C:/etc/gitconfig at runtime. Pin it to the install prefix so
+# `git config --system` and system config live inside the toolkit.
+ETC_GITCONFIG = $INSTALL_PREFIX/etc/gitconfig
 CC = $GCC
 AR = $(find_tool ar)
 RANLIB = $(find_tool ranlib)
@@ -76,6 +85,23 @@ NO_REGEX = YesPlease
 EOF
   make -j"$(nproc)" uname_S=MINGW
   make install uname_S=MINGW
+  # Build git's own wincred credential helper (ships in contrib/) so HTTPS
+  # auth can use the Windows Credential Manager instead of a console prompt.
+  # The built-in prompt reads from the console (CONIN$) and fails with
+  # "could not read Username ... No such file or directory" when git runs
+  # without one (e.g. shells launched from the GUI app).
+  "$GCC" -O2 -o "$INSTALL_PREFIX/bin/git-credential-wincred.exe" \
+      contrib/credential/wincred/git-credential-wincred.c
 )
+# Default to the wincred helper for this whole install (system config, i.e.
+# $INSTALL_PREFIX/etc/gitconfig; user/global config still overrides it).
+mkdir -p "$INSTALL_PREFIX/etc"
+"$INSTALL_PREFIX/bin/git.exe" config --system credential.helper wincred
+# Verify the system config was applied where git actually looks for it, so a
+# misconfigured ETC_GITCONFIG fails loudly here instead of at first use.
+if [ "$("$INSTALL_PREFIX/bin/git.exe" config --system --get credential.helper 2>/dev/null)" != "wincred" ]; then
+    echo "error: git system config (credential.helper=wincred) not applied" >&2
+    exit 1
+fi
 rm -r git-2.55.0 git-2.55.0.tar.gz
 echo "Test: \"$INSTALL_PREFIX\"/bin/git.exe --version"
