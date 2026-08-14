@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-#deps: opus
+#deps: opus, ogg
 #desc: Opus audio file library
 #version: 0.12
 #name: opusfile

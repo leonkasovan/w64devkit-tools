@@ -46,7 +46,7 @@ includedir=\${prefix}/include
 Name: sqlite3
 Description: SQL database engine
 Version: 3.50.0
-Libs: -L\${libdir} -lsqlite3 -lz
+Libs: -L\${libdir} -lsqlite3
 Cflags: -I\${includedir} -DSQLITE_THREADSAFE=1
 EOF
 )
