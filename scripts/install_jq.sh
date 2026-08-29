@@ -38,7 +38,8 @@ tar -xf jq-1.7.1.tar.gz
   # K&R-style function pointers (ANYARGS, st.h). Force C17 to avoid this.
   CFLAGS="-std=gnu17 $CFLAGS"
   ./configure --prefix="$INSTALL_PREFIX" --build=x86_64-w64-mingw32 \
-      CFLAGS="$CFLAGS" \
+      CFLAGS="-O2 -DNDEBUG $CFLAGS" \
+      LDFLAGS="-s" \
       --host=x86_64-w64-mingw32 \
       --disable-docs \
       --with-oniguruma=builtin \

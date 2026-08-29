@@ -28,7 +28,7 @@ tar -xjf mpg123-1.33.5.tar.bz2
   export OBJDUMP="$(command -v objdump)"
   export RANLIB="$(command -v ranlib)"
   export STRIP="$(command -v strip)"
-  ./configure CC=gcc --build=$(gcc -dumpmachine) --host=$(gcc -dumpmachine) --prefix="$INSTALL_PREFIX" --enable-static --disable-shared --disable-components --enable-libmpg123 --with-gnu-ld
+  ./configure CC=gcc --build=$(gcc -dumpmachine) --host=$(gcc -dumpmachine) --prefix="$INSTALL_PREFIX" --enable-static --disable-shared --disable-components --enable-libmpg123 --with-gnu-ld CFLAGS="-O2 -DNDEBUG" LDFLAGS="-s"
   make -j8
   make install
 )

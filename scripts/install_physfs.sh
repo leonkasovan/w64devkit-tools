@@ -10,7 +10,7 @@ skip_if_installed "physfs" "$INSTALL_PREFIX/lib/libphysfs.a" "physfs"
 
 wget https://github.com/icculus/physfs/archive/refs/tags/release-3.2.0.tar.gz -O physfs-3.2.0.tar.gz
 tar -xf physfs-3.2.0.tar.gz
-cmake -S physfs-release-3.2.0 -B build-physfs -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" -DBUILD_SHARED_LIBS=OFF -DPHYSFS_BUILD_SHARED=OFF -DPHYSFS_BUILD_STATIC=ON -DPHYSFS_BUILD_TEST=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake -S physfs-release-3.2.0 -B build-physfs -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" -DBUILD_SHARED_LIBS=OFF -DPHYSFS_BUILD_SHARED=OFF -DPHYSFS_BUILD_STATIC=ON -DPHYSFS_BUILD_TEST=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 cmake --build build-physfs --parallel
 cmake --install build-physfs
 rm -r build-physfs physfs-release-3.2.0 physfs-3.2.0.tar.gz

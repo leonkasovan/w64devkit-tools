@@ -11,6 +11,7 @@ skip_if_installed "libxml-2.0" "$INSTALL_PREFIX/bin/xmllint.exe" "xmllint"
 wget https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.3.tar.xz -O libxml2-2.15.3.tar.xz
 tar -xf libxml2-2.15.3.tar.xz
 cmake -S libxml2-2.15.3 -B build-xmllint \
+    -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
     -DBUILD_SHARED_LIBS=OFF \
     -DLIBXML2_WITH_PROGRAMS=ON \

@@ -17,7 +17,7 @@ fi
 unzip -qo astyle-3.6.18.zip
 (
   cd astyle-3.6.18/AStyle/build/gcc
-  make -j"$(nproc)" CFLAGS="-Wno-unknown-pragmas"
+  make -j"$(nproc)" CFLAGS="-O2 -DNDEBUG -Wno-unknown-pragmas" LDFLAGS="-s"
 )
 mkdir -p "$INSTALL_PREFIX/bin"
 cp -f astyle-3.6.18/AStyle/build/gcc/bin/astyle.exe "$INSTALL_PREFIX/bin/astyle.exe"
