@@ -25,4 +25,9 @@ mkdir -p "$tmp/repo"
   "$GIT" clone -q . "$tmp/clone"
 )
 test -f "$tmp/clone/hello.txt"
+
+# The wincred credential helper must be installed and set as the default so
+# HTTPS auth works without a console (Windows Credential Manager).
+test -x "$PREFIX/bin/git-credential-wincred.exe" || { echo "git-credential-wincred.exe missing"; exit 1; }
+test "$("$GIT" config --file "$PREFIX/etc/gitconfig" --get credential.helper)" = "wincred" || { echo "system credential.helper != wincred"; exit 1; }
 echo "git OK: $("$GIT" --version)"
