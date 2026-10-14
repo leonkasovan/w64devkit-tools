@@ -12,7 +12,8 @@ wget https://github.com/libarchive/bzip2/archive/refs/tags/bzip2-1.0.8.zip -O bz
 unzip -o bzip2-1.0.8.zip
 (
   cd bzip2-bzip2-1.0.8
-  make libbz2.a
+  make CFLAGS="-O2 -DNDEBUG" libbz2.a
+  strip libbz2.a
   mkdir -p "$INSTALL_PREFIX"/lib "$INSTALL_PREFIX"/include
   cp -f libbz2.a "$INSTALL_PREFIX"/lib/
   cp -f bzlib.h "$INSTALL_PREFIX"/include/

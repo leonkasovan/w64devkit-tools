@@ -24,6 +24,7 @@ esac
   cd CPP/7zip/Bundles/Alone2
   make USE_ASM= CFLAGS_WARN_WALL= -f ../../$CMPL -j"$(nproc)"
 )
+strip "CPP/7zip/Bundles/Alone2/b/g_$PLATFORM/7zz.exe"
 mkdir -p "$INSTALL_PREFIX/bin"
 cp -f "CPP/7zip/Bundles/Alone2/b/g_$PLATFORM/7zz.exe" "$INSTALL_PREFIX/bin/7z.exe"
 rm -r Asm C CPP DOC 7z2602-src.tar.xz

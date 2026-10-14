@@ -30,6 +30,7 @@ tar -xf sqlite3-3.50.0.tar.gz
   export STRIP="$(command -v strip)"
   ./configure CC=gcc --build=$(gcc -dumpmachine) --host=$(gcc -dumpmachine) --prefix="$INSTALL_PREFIX" --enable-static --disable-shared --disable-readline
   make -j8
+  strip libsqlite3.a
   # Manual install — autotools 'install -m' fails on MinGW
   mkdir -p "$INSTALL_PREFIX/lib" "$INSTALL_PREFIX/include"
   cp libsqlite3.a "$INSTALL_PREFIX/lib/"
