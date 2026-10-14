@@ -24,6 +24,7 @@ freebuff --continue 2026-06-16T00-09-41.384Z
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <functional>
 
 // ---- Library database ----
 
@@ -55,6 +56,9 @@ static std::vector<int> testSelected;       // 0/1 flags
 static int NUM_TESTS = 0;
 
 static std::mutex gLock;                    // guards libs/selected/tests/testSelected across threads
+static bool jobActive = false;               // UI-thread only; installs and tests share one worker slot
+static std::string appDir;
+static std::wstring appDirW;
 
 // ---- UI controls ----
 
@@ -181,7 +185,7 @@ static void calculateLevels() {
 // Scan scripts/install_*.sh and populate libs[] and selected[].
 static void initLibs() {
     WIN32_FIND_DATAA ffd;
-    HANDLE hFind = FindFirstFileA("scripts/install_*.sh", &ffd);
+    HANDLE hFind = FindFirstFileA((appDir + "scripts/install_*.sh").c_str(), &ffd);
     if (hFind == INVALID_HANDLE_VALUE)
         return;
 
@@ -192,7 +196,7 @@ static void initLibs() {
         std::string name = fname.substr(8, fname.size() - 11);
 
         // read the whole file
-        std::ifstream file(("scripts/" + fname).c_str());
+        std::ifstream file((appDir + "scripts/" + fname).c_str());
         if (!file.is_open()) continue;
         std::string content((std::istreambuf_iterator<char>(file)),
                              std::istreambuf_iterator<char>());
@@ -208,24 +212,9 @@ static void initLibs() {
             lib.deps += depList[i];
         }
         // Store absolute path to the script so bash can find it regardless of cwd
-        char exePathA[MAX_PATH];
-        std::string exeDir;
-        if (GetModuleFileNameA(NULL, exePathA, MAX_PATH)) {
-            exeDir = std::string(exePathA);
-            size_t sep = exeDir.find_last_of("\\/");
-            if (sep != std::string::npos)
-                exeDir.resize(sep + 1);
-        }
-        lib.script = exeDir + "scripts/" + fname;
+        lib.script = appDir + "scripts/" + fname;
         // Normalize to forward slashes for bash on Windows environments.
         std::replace(lib.script.begin(), lib.script.end(), '\\', '/');
-        // Ensure the script path actually exists; if not, fall back to a
-        // relative scripts/<name> path (also normalized).
-        if (GetFileAttributesA(lib.script.c_str()) == INVALID_FILE_ATTRIBUTES) {
-            lib.script = std::string("scripts/") + fname;
-            std::replace(lib.script.begin(), lib.script.end(), '\\', '/');
-        }
-
         // fallbacks if headers are missing
         if (lib.name.empty()) lib.name = name;
 
@@ -283,17 +272,18 @@ static std::vector<std::string> parseTestDeps(const std::string &raw) {
 
 static void initTests() {
     WIN32_FIND_DATAA ffd;
-    HANDLE hFind = FindFirstFileA("tests/test_*.sh", &ffd);
+    HANDLE hFind = FindFirstFileA((appDir + "tests/test_*.sh").c_str(), &ffd);
     if (hFind == INVALID_HANDLE_VALUE)
         return;
 
     std::vector<Test> temp;
     do {
         Test test;
-        test.script = ffd.cFileName;          // e.g. "test_sdl2mixer.sh"
+        test.script = appDir + "tests/" + ffd.cFileName;
+        std::replace(test.script.begin(), test.script.end(), '\\', '/');
 
         // read the whole file to extract description and deps from headers
-        std::ifstream file(("tests/" + test.script).c_str());
+        std::ifstream file(test.script.c_str());
         if (!file.is_open()) continue;
         std::string content((std::istreambuf_iterator<char>(file)),
                              std::istreambuf_iterator<char>());
@@ -328,18 +318,56 @@ static int onClosing(uiWindow *, void *) {
 
 // ---- Selection helpers ----
 
+static int findLibrary(const std::string &name) {
+    for (int i = 0; i < NUM_LIBS; ++i)
+        if (libs[i].name == name) return i;
+    return -1;
+}
+
 static void selectDeps(int idx) {
-    auto deps = parseDeps(libs[idx].deps);
-    for (const auto &depName : deps) {
-        for (int i = 0; i < NUM_LIBS; i++) {
-            if (libs[i].name == depName && !selected[i]) {
-                selected[i] = 1;
-                if (libTableModel)
-                    uiTableModelRowChanged(libTableModel, i);
-                selectDeps(i);
+    std::vector<int> pending{idx};
+    std::unordered_set<int> visited;
+    while (!pending.empty()) {
+        int current = pending.back();
+        pending.pop_back();
+        if (!visited.insert(current).second) continue;
+        for (const auto &depName : parseDeps(libs[current].deps)) {
+            int dep = findLibrary(depName);
+            if (dep < 0) continue;
+            if (!selected[dep]) {
+                selected[dep] = 1;
+                if (libTableModel) uiTableModelRowChanged(libTableModel, dep);
             }
+            pending.push_back(dep);
         }
     }
+}
+
+static bool selectLibraryClosure(const std::vector<int> &roots,
+                                 std::vector<int> &order, std::string &error) {
+    std::vector<unsigned char> state(NUM_LIBS, 0);
+    std::function<bool(int)> visit = [&](int idx) {
+        if (state[idx] == 2) return true;
+        if (state[idx] == 1) {
+            error = "Dependency cycle detected at " + libs[idx].name;
+            return false;
+        }
+        state[idx] = 1;
+        for (const auto &depName : parseDeps(libs[idx].deps)) {
+            int dep = findLibrary(depName);
+            if (dep < 0) {
+                error = "Unknown dependency '" + depName + "' required by " + libs[idx].name;
+                return false;
+            }
+            if (!visit(dep)) return false;
+        }
+        state[idx] = 2;
+        order.push_back(idx);
+        return true;
+    };
+    for (int root : roots)
+        if (!visit(root)) return false;
+    return true;
 }
 
 static void onSelectAll(uiButton *, void *) {
@@ -365,15 +393,14 @@ static void onSelectAllTests(uiButton *, void *) {
         testSelected[i] = 1;
         if (testTableModel)
             uiTableModelRowChanged(testTableModel, i);
-        // also select library dependencies
-        auto deps = parseTestDeps(tests[i].deps);
-        for (const auto &depName : deps) {
-            for (int j = 0; j < NUM_LIBS; j++) {
-                if (libs[j].name == depName && !selected[j]) {
-                    selected[j] = 1;
-                    if (libTableModel)
-                        uiTableModelRowChanged(libTableModel, j);
+        for (const auto &depName : parseTestDeps(tests[i].deps)) {
+            int dep = findLibrary(depName);
+            if (dep >= 0) {
+                if (!selected[dep]) {
+                    selected[dep] = 1;
+                    if (libTableModel) uiTableModelRowChanged(libTableModel, dep);
                 }
+                selectDeps(dep);
             }
         }
     }
@@ -466,7 +493,8 @@ static uiTableValue *testModelCellValue(uiTableModelHandler *, uiTableModel *, i
     if (column == 2)
         return uiNewTableValueString(test.deps.c_str());
 
-    std::string text = test.script;
+    size_t sep = test.script.find_last_of("/\\");
+    std::string text = sep == std::string::npos ? test.script : test.script.substr(sep + 1);
     if (!test.desc.empty())
         text += ": " + test.desc;
     return uiNewTableValueString(text.c_str());
@@ -479,15 +507,14 @@ static void testModelSetCellValue(uiTableModelHandler *, uiTableModel *m, int ro
         bool checked = uiTableValueInt(value) != 0;
         if (checked && !testSelected[row]) {
             testSelected[row] = 1;
-            // auto-select library dependencies
-            auto deps = parseTestDeps(tests[row].deps);
-            for (const auto &depName : deps) {
-                for (int i = 0; i < NUM_LIBS; i++) {
-                    if (libs[i].name == depName && !selected[i]) {
-                        selected[i] = 1;
-                        if (libTableModel)
-                            uiTableModelRowChanged(libTableModel, i);
+            for (const auto &depName : parseTestDeps(tests[row].deps)) {
+                int dep = findLibrary(depName);
+                if (dep >= 0) {
+                    if (!selected[dep]) {
+                        selected[dep] = 1;
+                        if (libTableModel) uiTableModelRowChanged(libTableModel, dep);
                     }
+                    selectDeps(dep);
                 }
             }
         } else if (!checked) {
@@ -569,6 +596,7 @@ static void applyUiUpdate(void *data) {
         uiFreeText(current);
     }
     if (upd->done) {
+        jobActive = false;
         uiControlEnable(uiControl(installBtn));
         uiControlEnable(uiControl(buildTestBtn));
     }
@@ -661,7 +689,8 @@ static std::string findShell(const char *prefix) {
     return "";
 }
 
-static int runScriptStreamed(const char *shell, const char *script, const char *prefix, const char *forceUpdate) {
+static int runScriptStreamed(const char *shell, const char *script, const char *prefix,
+                             const char *forceUpdate, const wchar_t *workingDir) {
     SECURITY_ATTRIBUTES sa{sizeof(sa), NULL, TRUE};
     HANDLE readPipe = NULL, writePipe = NULL;
     if (!CreatePipe(&readPipe, &writePipe, &sa, 0))
@@ -670,14 +699,6 @@ static int runScriptStreamed(const char *shell, const char *script, const char *
         CloseHandle(readPipe);
         CloseHandle(writePipe);
         return -1;
-    }
-
-    // check script name if contains "test" and if so, set the working directory to "tests" instead of "scripts"
-    std::wstring wdir;
-    if (std::string(script).find("test") != std::string::npos) {
-        wdir = L"tests";
-    } else {
-        wdir = L"scripts";
     }
 
     std::string cmdLineA = "\"" + toNativePath(shell) + "\" \"" + toBashPath(script) + "\" \"" + toBashPath(prefix) + "\" \"" + forceUpdate + "\"";
@@ -694,7 +715,7 @@ static int runScriptStreamed(const char *shell, const char *script, const char *
     si.wShowWindow = SW_HIDE;
 
     PROCESS_INFORMATION pi{};
-    if (!CreateProcessW(NULL, &cmdLineW[0], NULL, NULL, TRUE, 0, NULL, wdir.c_str(), &si, &pi)) {
+    if (!CreateProcessW(NULL, &cmdLineW[0], NULL, NULL, TRUE, 0, NULL, workingDir, &si, &pi)) {
         DWORD err = GetLastError();
         CloseHandle(writePipe);
         CloseHandle(readPipe);
@@ -761,7 +782,8 @@ static unsigned int __stdcall installThread(void *data) {
         }
 
         const char *forceStr = job->forceUpdate ? "true" : "false";
-        int rc = runScriptStreamed(shell.c_str(), libScript.c_str(), job->prefix, forceStr);
+        int rc = runScriptStreamed(shell.c_str(), libScript.c_str(), job->prefix, forceStr,
+                                   (appDirW + L"scripts").c_str());
         if (rc < 0) {
             std::snprintf(msg, sizeof(msg), "!!! Failed to start install process '%s' (error %d)\n", shell.c_str(), rc);
             sendUpdate(msg, -1, true);
@@ -829,7 +851,8 @@ static unsigned int __stdcall buildTestThread(void *data) {
         }
 
         const char *forceStr = "false";  // not used for tests
-        int rc = runScriptStreamed(shell.c_str(), testScript.c_str(), job->prefix, forceStr);
+        int rc = runScriptStreamed(shell.c_str(), testScript.c_str(), job->prefix, forceStr,
+                                   (appDirW + L"tests").c_str());
         if (rc < 0) {
             std::snprintf(msg, sizeof(msg), "!!! Failed to start build process '%s' (error %d)\n", shell.c_str(), rc);
             sendUpdate(msg, -1, true);
@@ -859,6 +882,7 @@ static bool isUnsafePrefix(const char *s) {
 }
 
 static void onInstall(uiButton *, void *) {
+    if (jobActive) return;
     char *prefix = uiEntryText(prefixEntry);
     if (isUnsafePrefix(prefix)) {
         uiMultilineEntryAppend(outputPane, "Error: install prefix contains invalid characters.\n");
@@ -873,21 +897,9 @@ static void onInstall(uiButton *, void *) {
     uiFreeText(prefix);
 
     // Build ini path in the res/ folder alongside the executable
-    {
-        char exePath[MAX_PATH];
-        DWORD len = GetModuleFileNameA(NULL, exePath, MAX_PATH);
-        if (len > 0 && len < MAX_PATH) {
-            std::string dir(exePath);
-            size_t sep = dir.find_last_of("\\/");
-            if (sep != std::string::npos) {
-                dir.resize(sep + 1);
-                dir += "res\\installed.ini";
-                std::strncpy(job->iniPath, dir.c_str(), sizeof(job->iniPath) - 1);
-            }
-        }
-        if (!job->iniPath[0])
-            std::strncpy(job->iniPath, "res/installed.ini", sizeof(job->iniPath) - 1);
-    }
+    std::string iniPath = appDir + "res/installed.ini";
+    std::replace(iniPath.begin(), iniPath.end(), '/', '\\');
+    std::strncpy(job->iniPath, iniPath.c_str(), sizeof(job->iniPath) - 1);
 
     job->forceUpdate = uiCheckboxChecked(forceUpdateCb) != 0 ? 1 : 0;
 
@@ -898,25 +910,34 @@ static void onInstall(uiButton *, void *) {
     bool forceUpdate = job->forceUpdate != 0;
     auto installed = forceUpdate ? std::unordered_set<std::string>() : loadInstalled(job->iniPath, job->prefix);
 
-    int maxLevel = 0;
-    for (int i = 0; i < NUM_LIBS; i++)
-        if (libs[i].level > maxLevel) maxLevel = libs[i].level;
-
-    job->order.resize(NUM_LIBS);
+    std::vector<int> roots;
+    for (int i = 0; i < NUM_LIBS; ++i)
+        if (selected[i]) roots.push_back(i);
+    std::vector<int> closure;
+    std::string dependencyError;
+    if (!selectLibraryClosure(roots, closure, dependencyError)) {
+        uiMultilineEntrySetText(outputPane, ("Error: " + dependencyError + "\n").c_str());
+        delete job;
+        return;
+    }
+    // Keep the visible checkboxes consistent with the dependency closure that will run.
+    for (int i : closure) {
+        if (!selected[i]) {
+            selected[i] = 1;
+            if (libTableModel) uiTableModelRowChanged(libTableModel, i);
+        }
+    }
+    job->order.resize(closure.size());
     int skipped = 0;
-    for (int level = 0; level <= maxLevel; level++) {
-        for (int i = 0; i < NUM_LIBS; i++) {
-            if (selected[i] && libs[i].level == level) {
-                if (installed.find(libs[i].name) != installed.end()) {
-                    skipped++;
-                    char msg[256];
-                    std::snprintf(msg, sizeof(msg), "--- %s already installed, skipping\n",
-                                  libs[i].name.c_str());
-                    uiMultilineEntryAppend(outputPane, msg);
-                } else {
-                    job->order[job->count++] = i;
-                }
-            }
+    for (int i : closure) {
+        if (installed.find(libs[i].name) != installed.end()) {
+            skipped++;
+            char msg[256];
+            std::snprintf(msg, sizeof(msg), "--- %s already installed, skipping\n",
+                          libs[i].name.c_str());
+            uiMultilineEntryAppend(outputPane, msg);
+        } else {
+            job->order[job->count++] = i;
         }
     }
 
@@ -935,15 +956,19 @@ static void onInstall(uiButton *, void *) {
                   forceUpdate ? " (force update)" : "",
                   skipped > 0 ? " (skipping already installed)" : "");
     uiMultilineEntryAppend(outputPane, header);
+    jobActive = true;
     uiControlDisable(uiControl(installBtn));
+    uiControlDisable(uiControl(buildTestBtn));
 
     // Spawn a background thread so the UI stays responsive
     HANDLE hThread = reinterpret_cast<HANDLE>(
         _beginthreadex(nullptr, 0, installThread, job, 0, nullptr));
     if (!hThread) {
         delete job;
+        jobActive = false;
         uiMultilineEntryAppend(outputPane, "Error: failed to create install thread.\n");
         uiControlEnable(uiControl(installBtn));
+        uiControlEnable(uiControl(buildTestBtn));
     } else {
         CloseHandle(hThread);
     }
@@ -952,6 +977,7 @@ static void onInstall(uiButton *, void *) {
 // ---- Build test button handler ----
 
 static void onBuildTests(uiButton *, void *) {
+    if (jobActive) return;
     char *prefix = uiEntryText(prefixEntry);
     if (isUnsafePrefix(prefix)) {
         uiMultilineEntryAppend(outputPane, "Error: install prefix contains invalid characters.\n");
@@ -966,21 +992,9 @@ static void onBuildTests(uiButton *, void *) {
     uiFreeText(prefix);
 
     // Build ini path in the res/ folder alongside the executable
-    {
-        char exePath[MAX_PATH];
-        DWORD len = GetModuleFileNameA(NULL, exePath, MAX_PATH);
-        if (len > 0 && len < MAX_PATH) {
-            std::string dir(exePath);
-            size_t sep = dir.find_last_of("\\/");
-            if (sep != std::string::npos) {
-                dir.resize(sep + 1);
-                dir += "res\\installed.ini";
-                std::strncpy(job->iniPath, dir.c_str(), sizeof(job->iniPath) - 1);
-            }
-        }
-        if (!job->iniPath[0])
-            std::strncpy(job->iniPath, "res/installed.ini", sizeof(job->iniPath) - 1);
-    }
+    std::string iniPath = appDir + "res/installed.ini";
+    std::replace(iniPath.begin(), iniPath.end(), '/', '\\');
+    std::strncpy(job->iniPath, iniPath.c_str(), sizeof(job->iniPath) - 1);
 
     job->forceUpdate = 0;  // not used for tests
 
@@ -1005,6 +1019,8 @@ static void onBuildTests(uiButton *, void *) {
     std::snprintf(header, sizeof(header), "=== Building %d test%s ===\n",
                   job->count, job->count > 1 ? "s" : "");
     uiMultilineEntryAppend(outputPane, header);
+    jobActive = true;
+    uiControlDisable(uiControl(installBtn));
     uiControlDisable(uiControl(buildTestBtn));
 
     // Spawn a background thread so the UI stays responsive
@@ -1012,8 +1028,10 @@ static void onBuildTests(uiButton *, void *) {
         _beginthreadex(nullptr, 0, buildTestThread, job, 0, nullptr));
     if (!hThread) {
         delete job;
+        jobActive = false;
         uiMultilineEntryAppend(outputPane, "Error: failed to create build thread.\n");
         uiControlEnable(uiControl(buildTestBtn));
+        uiControlEnable(uiControl(installBtn));
     } else {
         CloseHandle(hThread);
     }
@@ -1022,6 +1040,34 @@ static void onBuildTests(uiButton *, void *) {
 // ---- Entry point ----
 
 int main() {
+    char exePathA[MAX_PATH];
+    DWORD exeLenA = GetModuleFileNameA(NULL, exePathA, MAX_PATH);
+    if (!exeLenA || exeLenA >= MAX_PATH) {
+        std::fprintf(stderr, "Error: unable to resolve application directory.\n");
+        return 1;
+    }
+    appDir.assign(exePathA, exeLenA);
+    size_t appSep = appDir.find_last_of("\\/");
+    if (appSep == std::string::npos) {
+        std::fprintf(stderr, "Error: unable to resolve application directory.\n");
+        return 1;
+    }
+    appDir.resize(appSep + 1);
+
+    wchar_t exePathW[MAX_PATH];
+    DWORD exeLenW = GetModuleFileNameW(NULL, exePathW, MAX_PATH);
+    if (!exeLenW || exeLenW >= MAX_PATH) {
+        std::fprintf(stderr, "Error: unable to resolve application directory.\n");
+        return 1;
+    }
+    appDirW.assign(exePathW, exeLenW);
+    size_t appSepW = appDirW.find_last_of(L"\\/");
+    if (appSepW == std::wstring::npos) {
+        std::fprintf(stderr, "Error: unable to resolve application directory.\n");
+        return 1;
+    }
+    appDirW.resize(appSepW + 1);
+
     uiInitOptions o{};
     o.Size = sizeof(uiInitOptions);
 

@@ -36,6 +36,11 @@ SRC_DIR    := .
 LIBUI_DIR  := $(SRC_DIR)/libui-ng
 RES_DIR    := $(SRC_DIR)/res
 BUILD_DIR  := build
+ifeq ($(config),Debug)
+BUILD_DIR  := build/Debug
+else
+BUILD_DIR  := build/Release
+endif
 
 # ---------------------------------------------------------------------------
 # libui-ng source files (from CMakeLists.txt)
@@ -52,6 +57,7 @@ LIBUI_COMMON_CPP_OBJ := $(patsubst $(LIBUI_DIR)/common/%.cpp,$(BUILD_DIR)/common
 LIBUI_WIN_OBJ        := $(patsubst $(LIBUI_DIR)/windows/%.cpp,$(BUILD_DIR)/windows/%.o,$(LIBUI_WIN_CPP))
 
 LIBUI_OBJS := $(LIBUI_COMMON_C_OBJ) $(LIBUI_COMMON_CPP_OBJ) $(LIBUI_WIN_OBJ)
+DEPFILES := $(BUILD_DIR)/main.d $(LIBUI_OBJS:.o=.d)
 
 # ---------------------------------------------------------------------------
 # libui compile flags (matches CMakeLists.txt)
@@ -91,24 +97,24 @@ $(BUILD_DIR)/libui.a: $(LIBUI_OBJS) | $(BUILD_DIR)
 
 # -- main.cpp --
 $(BUILD_DIR)/main.o: main.cpp | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) -I$(LIBUI_DIR) -D_UI_STATIC -c $< -o $@
+	$(CXX) $(CXXFLAGS) -I$(LIBUI_DIR) -D_UI_STATIC -MMD -MP -MF $(BUILD_DIR)/main.d -c $< -o $@
 
 # -- libui .c files (common) --
 $(BUILD_DIR)/common/%.o: $(LIBUI_DIR)/common/%.c | $(BUILD_DIR)
-	$(CC) $(CFLAGS) $(LIBUI_CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(LIBUI_CFLAGS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
 
 # -- libui .cpp files (common) --
 $(BUILD_DIR)/common/%.o: $(LIBUI_DIR)/common/%.cpp | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) $(LIBUI_CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(LIBUI_CXXFLAGS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
 
 # -- libui .cpp files (windows) --
 $(BUILD_DIR)/windows/%.o: $(LIBUI_DIR)/windows/%.cpp | $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) $(LIBUI_CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(LIBUI_CXXFLAGS) -MMD -MP -MF $(@:.o=.d) -c $< -o $@
 
 # -- Resources --
 # res/resources.rc includes "winapi.hpp" and "resources.hpp" from libui-ng/windows/
 # and references "libui.manifest" from res/
-$(BUILD_DIR)/resources.o: $(RES_DIR)/resources.rc $(RES_DIR)/libui.manifest \
+$(BUILD_DIR)/resources.o: $(RES_DIR)/resources.rc $(RES_DIR)/libui.manifest $(RES_DIR)/w64devkit.ico \
                           $(LIBUI_DIR)/windows/winapi.hpp $(LIBUI_DIR)/windows/resources.hpp | $(BUILD_DIR)
 	$(WINDRES) -i $(RES_DIR)/resources.rc -o $@ \
 		-I$(RES_DIR) -I$(LIBUI_DIR)/windows
@@ -116,6 +122,8 @@ $(BUILD_DIR)/resources.o: $(RES_DIR)/resources.rc $(RES_DIR)/libui.manifest \
 # -- Create build directory structure --
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)/common $(BUILD_DIR)/windows
+
+-include $(DEPFILES)
 
 # -- Clean --
 clean:
