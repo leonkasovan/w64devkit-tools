@@ -14,8 +14,8 @@ Requires MinGW-w64 (w64devkit). **Cannot build on Linux/macOS** — bundled libu
 
 ## Architecture
 
-- **Single source file:** `main.cpp` (~810 lines) — the entire app.
-- **25 install scripts:** `scripts/install_*.sh` — each must have these headers:
+- **Single source file:** `main.cpp` (~1166 lines) — the entire app.
+- **43 install scripts:** `scripts/install_*.sh` — each must have these headers:
   `#deps:`, `#desc:`, `#version:`, `#name:`. Use `#deps: none` if none.
   All scripts source `scripts/common.sh` for shared argument parsing and the
   `skip_if_installed()` helper — never duplicate that boilerplate.
@@ -26,7 +26,7 @@ Requires MinGW-w64 (w64devkit). **Cannot build on Linux/macOS** — bundled libu
 
 ## Quirks
 
-- No tests, lint, typecheck, CI/CD, or package manager.
+- No lint, typecheck, CI/CD, or package manager. Tests are shell scripts in `tests/test_*.sh`, run manually from the app's Test tab.
 - Fully statically linked (`-static -static-libgcc -static-libstdc++`).
 - Build artifacts (`build/`) are checked into git.
 - Output pane trims at ~25K chars to 20K + `"\n--- trimmed ---\n"`.
