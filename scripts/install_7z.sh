@@ -22,7 +22,7 @@ case "$(gcc -dumpmachine)" in
 esac
 (
   cd CPP/7zip/Bundles/Alone2
-  make USE_ASM= CFLAGS_WARN_WALL= -f ../../$CMPL -j"$(nproc)"
+  make USE_ASM= CFLAGS_WARN_WALL= CFLAGS_ADD="-O2 -DNDEBUG" LDFLAGS_ADD="-s" -f ../../$CMPL -j"$(nproc)"
 )
 strip "CPP/7zip/Bundles/Alone2/b/g_$PLATFORM/7zz.exe"
 mkdir -p "$INSTALL_PREFIX/bin"

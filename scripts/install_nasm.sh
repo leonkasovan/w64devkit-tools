@@ -24,7 +24,9 @@ tar -xf nasm-3.02.tar.gz
       CC="$INSTALL_PREFIX/bin/gcc" \
       AR="$INSTALL_PREFIX/bin/ar" \
       RANLIB="$INSTALL_PREFIX/bin/ranlib" \
-      STRIP="$INSTALL_PREFIX/bin/strip"
+      STRIP="$INSTALL_PREFIX/bin/strip" \
+      CFLAGS="-O2 -DNDEBUG" \
+      LDFLAGS="-s"
   make -j"$(nproc)"
   make install
 )

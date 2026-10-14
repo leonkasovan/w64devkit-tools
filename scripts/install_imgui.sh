@@ -26,7 +26,7 @@ rm -rf "$INSTALL_PREFIX/include/imgui/backends"
 # Compile core + GLFW/OpenGL3 backend into a single static library.
 # glfw3.h is pulled from the installed prefix; the OpenGL3 backend ships its
 # own GL loader so no extra GL dependency is required at compile time.
-gcc -c -O2 -I"$IMGUI_DIR" -I"$IMGUI_DIR"/backends -I"$INSTALL_PREFIX/include" \
+gcc -c -O2 -DNDEBUG -I"$IMGUI_DIR" -I"$IMGUI_DIR"/backends -I"$INSTALL_PREFIX/include" \
   "$IMGUI_DIR"/imgui.cpp \
   "$IMGUI_DIR"/imgui_draw.cpp \
   "$IMGUI_DIR"/imgui_widgets.cpp \

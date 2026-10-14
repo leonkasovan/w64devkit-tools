@@ -64,6 +64,8 @@ static std::wstring appDirW;
 
 static uiWindow *window = nullptr;
 static uiEntry *prefixEntry = nullptr;
+static uiEntry *filterEntry = nullptr;
+static uiEntry *testFilterEntry = nullptr;
 static uiTable *libTable = nullptr;
 static uiTableModel *libTableModel = nullptr;
 static uiTable *testTable = nullptr;
@@ -72,6 +74,15 @@ static uiCheckbox *forceUpdateCb = nullptr;
 static uiButton *installBtn = nullptr;
 static uiButton *buildTestBtn = nullptr;
 static uiMultilineEntry *outputPane = nullptr;
+
+// Filter state
+static std::string libFilter;
+static std::vector<int> libFilteredIndices;  // maps filtered row -> actual row index
+static int lastLibRowCount = 0;              // tracks ListView row count for sync
+
+static std::string testFilter;
+static std::vector<int> testFilteredIndices; // maps filtered row -> actual row index
+static int lastTestRowCount = 0;             // tracks ListView row count for sync
 
 // ---- Install job (allocated on heap for background thread) ----
 
@@ -324,6 +335,15 @@ static int findLibrary(const std::string &name) {
     return -1;
 }
 
+static void notifyLibraryChanged(int actualIndex) {
+    for (int row = 0; row < static_cast<int>(libFilteredIndices.size()); ++row) {
+        if (libFilteredIndices[row] == actualIndex) {
+            if (libTableModel) uiTableModelRowChanged(libTableModel, row);
+            return;
+        }
+    }
+}
+
 static void selectDeps(int idx) {
     std::vector<int> pending{idx};
     std::unordered_set<int> visited;
@@ -336,7 +356,7 @@ static void selectDeps(int idx) {
             if (dep < 0) continue;
             if (!selected[dep]) {
                 selected[dep] = 1;
-                if (libTableModel) uiTableModelRowChanged(libTableModel, dep);
+                notifyLibraryChanged(dep);
             }
             pending.push_back(dep);
         }
@@ -371,16 +391,16 @@ static bool selectLibraryClosure(const std::vector<int> &roots,
 }
 
 static void onSelectAll(uiButton *, void *) {
-    for (int i = 0; i < NUM_LIBS; i++) {
-        selected[i] = 1;
+    for (int i = 0; i < static_cast<int>(libFilteredIndices.size()); i++) {
+        selected[libFilteredIndices[i]] = 1;
         if (libTableModel)
             uiTableModelRowChanged(libTableModel, i);
     }
 }
 
 static void onDeselectAll(uiButton *, void *) {
-    for (int i = 0; i < NUM_LIBS; i++) {
-        selected[i] = 0;
+    for (int i = 0; i < static_cast<int>(libFilteredIndices.size()); i++) {
+        selected[libFilteredIndices[i]] = 0;
         if (libTableModel)
             uiTableModelRowChanged(libTableModel, i);
     }
@@ -389,16 +409,17 @@ static void onDeselectAll(uiButton *, void *) {
 // ---- Test selection helpers ----
 
 static void onSelectAllTests(uiButton *, void *) {
-    for (int i = 0; i < NUM_TESTS; i++) {
-        testSelected[i] = 1;
+    for (int i = 0; i < static_cast<int>(testFilteredIndices.size()); i++) {
+        int actualTest = testFilteredIndices[i];
+        testSelected[actualTest] = 1;
         if (testTableModel)
             uiTableModelRowChanged(testTableModel, i);
-        for (const auto &depName : parseTestDeps(tests[i].deps)) {
+        for (const auto &depName : parseTestDeps(tests[actualTest].deps)) {
             int dep = findLibrary(depName);
             if (dep >= 0) {
                 if (!selected[dep]) {
                     selected[dep] = 1;
-                    if (libTableModel) uiTableModelRowChanged(libTableModel, dep);
+                    notifyLibraryChanged(dep);
                 }
                 selectDeps(dep);
             }
@@ -407,10 +428,38 @@ static void onSelectAllTests(uiButton *, void *) {
 }
 
 static void onDeselectAllTests(uiButton *, void *) {
-    for (int i = 0; i < NUM_TESTS; i++) {
-        testSelected[i] = 0;
+    for (int i = 0; i < static_cast<int>(testFilteredIndices.size()); i++) {
+        testSelected[testFilteredIndices[i]] = 0;
         if (testTableModel)
             uiTableModelRowChanged(testTableModel, i);
+    }
+    // Update library table to reflect deselection
+    if (libTableModel)
+        uiTableModelRowChanged(libTableModel, -1);
+}
+
+// ---- Filter helpers ----
+
+static void rebuildLibFilter() {
+    libFilteredIndices.clear();
+    for (int i = 0; i < NUM_LIBS; i++) {
+        if (libFilter.empty()) {
+            libFilteredIndices.push_back(i);
+            continue;
+        }
+        // Build the same description text the table shows
+        std::string text = libs[i].name;
+        if (!libs[i].version.empty())
+            text += " (" + libs[i].version + ")";
+        if (!libs[i].desc.empty())
+            text += " - " + libs[i].desc;
+        // Case-insensitive substring match
+        std::string lowerText = text;
+        std::string lowerFilter = libFilter;
+        std::transform(lowerText.begin(), lowerText.end(), lowerText.begin(), ::tolower);
+        std::transform(lowerFilter.begin(), lowerFilter.end(), lowerFilter.begin(), ::tolower);
+        if (lowerText.find(lowerFilter) != std::string::npos)
+            libFilteredIndices.push_back(i);
     }
 }
 
@@ -424,16 +473,17 @@ static uiTableValueType libModelColumnType(uiTableModelHandler *, uiTableModel *
 }
 
 static int libModelNumRows(uiTableModelHandler *, uiTableModel *) {
-    return NUM_LIBS;
+    return static_cast<int>(libFilteredIndices.size());
 }
 
 static uiTableValue *libModelCellValue(uiTableModelHandler *, uiTableModel *, int row, int column) {
-    if (row < 0 || row >= NUM_LIBS)
+    if (row < 0 || row >= static_cast<int>(libFilteredIndices.size()))
         return uiNewTableValueString("");
+    int actualRow = libFilteredIndices[row];
     if (column == 0)
-        return uiNewTableValueInt(selected[row]);
+        return uiNewTableValueInt(selected[actualRow]);
 
-    const Library &lib = libs[row];
+    const Library &lib = libs[actualRow];
     if (column == 2)
         return uiNewTableValueString(lib.deps.c_str());
 
@@ -446,15 +496,16 @@ static uiTableValue *libModelCellValue(uiTableModelHandler *, uiTableModel *, in
 }
 
 static void libModelSetCellValue(uiTableModelHandler *, uiTableModel *m, int row, int column, const uiTableValue *value) {
-    if (row < 0 || row >= NUM_LIBS || value == nullptr)
+    if (row < 0 || row >= static_cast<int>(libFilteredIndices.size()) || value == nullptr)
         return;
+    int actualRow = libFilteredIndices[row];
     if (column == 0) {
         bool checked = uiTableValueInt(value) != 0;
-        if (checked && !selected[row]) {
-            selected[row] = 1;
-            selectDeps(row);
+        if (checked && !selected[actualRow]) {
+            selected[actualRow] = 1;
+            selectDeps(actualRow);
         } else if (!checked) {
-            selected[row] = 0;
+            selected[actualRow] = 0;
         }
         uiTableModelRowChanged(m, row);
         return;
@@ -469,6 +520,68 @@ static uiTableModelHandler libTableModelHandler = {
     libModelSetCellValue,
 };
 
+static void onFilterChanged(uiEntry *, void *) {
+    char *text = uiEntryText(filterEntry);
+    libFilter = text ? text : "";
+    uiFreeText(text);
+    rebuildLibFilter();
+    if (!libTableModel) return;
+    int newCount = static_cast<int>(libFilteredIndices.size());
+    if (newCount < lastLibRowCount) {
+        // Remove excess rows from the bottom
+        for (int i = lastLibRowCount - 1; i >= newCount; i--)
+            uiTableModelRowDeleted(libTableModel, i);
+    } else if (newCount > lastLibRowCount) {
+        // Add new rows at the bottom
+        for (int i = lastLibRowCount; i < newCount; i++)
+            uiTableModelRowInserted(libTableModel, i);
+    }
+    lastLibRowCount = newCount;
+    // Refresh all visible rows
+    for (int i = 0; i < newCount; i++)
+        uiTableModelRowChanged(libTableModel, i);
+}
+
+static void rebuildTestFilter() {
+    testFilteredIndices.clear();
+    for (int i = 0; i < NUM_TESTS; i++) {
+        if (testFilter.empty()) {
+            testFilteredIndices.push_back(i);
+            continue;
+        }
+        // Build the same description text the table shows
+        std::string text = tests[i].script;
+        if (!tests[i].desc.empty())
+            text += ": " + tests[i].desc;
+        // Case-insensitive substring match
+        std::string lowerText = text;
+        std::string lowerFilter = testFilter;
+        std::transform(lowerText.begin(), lowerText.end(), lowerText.begin(), ::tolower);
+        std::transform(lowerFilter.begin(), lowerFilter.end(), lowerFilter.begin(), ::tolower);
+        if (lowerText.find(lowerFilter) != std::string::npos)
+            testFilteredIndices.push_back(i);
+    }
+}
+
+static void onTestFilterChanged(uiEntry *, void *) {
+    char *text = uiEntryText(testFilterEntry);
+    testFilter = text ? text : "";
+    uiFreeText(text);
+    rebuildTestFilter();
+    if (!testTableModel) return;
+    int newCount = static_cast<int>(testFilteredIndices.size());
+    if (newCount < lastTestRowCount) {
+        for (int i = lastTestRowCount - 1; i >= newCount; i--)
+            uiTableModelRowDeleted(testTableModel, i);
+    } else if (newCount > lastTestRowCount) {
+        for (int i = lastTestRowCount; i < newCount; i++)
+            uiTableModelRowInserted(testTableModel, i);
+    }
+    lastTestRowCount = newCount;
+    for (int i = 0; i < newCount; i++)
+        uiTableModelRowChanged(testTableModel, i);
+}
+
 // ---- Test table model helpers ----
 
 static int testModelNumColumns(uiTableModelHandler *, uiTableModel *) {
@@ -480,16 +593,17 @@ static uiTableValueType testModelColumnType(uiTableModelHandler *, uiTableModel 
 }
 
 static int testModelNumRows(uiTableModelHandler *, uiTableModel *) {
-    return NUM_TESTS;
+    return static_cast<int>(testFilteredIndices.size());
 }
 
 static uiTableValue *testModelCellValue(uiTableModelHandler *, uiTableModel *, int row, int column) {
-    if (row < 0 || row >= NUM_TESTS)
+    if (row < 0 || row >= static_cast<int>(testFilteredIndices.size()))
         return uiNewTableValueString("");
+    int actualRow = testFilteredIndices[row];
     if (column == 0)
-        return uiNewTableValueInt(testSelected[row]);
+        return uiNewTableValueInt(testSelected[actualRow]);
 
-    const Test &test = tests[row];
+    const Test &test = tests[actualRow];
     if (column == 2)
         return uiNewTableValueString(test.deps.c_str());
 
@@ -501,24 +615,25 @@ static uiTableValue *testModelCellValue(uiTableModelHandler *, uiTableModel *, i
 }
 
 static void testModelSetCellValue(uiTableModelHandler *, uiTableModel *m, int row, int column, const uiTableValue *value) {
-    if (row < 0 || row >= NUM_TESTS || value == nullptr)
+    if (row < 0 || row >= static_cast<int>(testFilteredIndices.size()) || value == nullptr)
         return;
+    int actualRow = testFilteredIndices[row];
     if (column == 0) {
         bool checked = uiTableValueInt(value) != 0;
-        if (checked && !testSelected[row]) {
-            testSelected[row] = 1;
-            for (const auto &depName : parseTestDeps(tests[row].deps)) {
+        if (checked && !testSelected[actualRow]) {
+            testSelected[actualRow] = 1;
+            for (const auto &depName : parseTestDeps(tests[actualRow].deps)) {
                 int dep = findLibrary(depName);
                 if (dep >= 0) {
                     if (!selected[dep]) {
                         selected[dep] = 1;
-                        if (libTableModel) uiTableModelRowChanged(libTableModel, dep);
+                        notifyLibraryChanged(dep);
                     }
                     selectDeps(dep);
                 }
             }
         } else if (!checked) {
-            testSelected[row] = 0;
+            testSelected[actualRow] = 0;
         }
         uiTableModelRowChanged(m, row);
         return;
@@ -1080,8 +1195,10 @@ int main() {
 
     // Dynamically discover libraries from scripts/ directory
     initLibs();
+    rebuildLibFilter();  // initialize filtered indices
     // Dynamically discover tests from tests/ directory
     initTests();
+    rebuildTestFilter();  // initialize test filtered indices
 
     window = uiNewWindow("w64devkit Tools", 900, 700, 0);
     uiWindowSetMargined(window, 1);
@@ -1128,6 +1245,17 @@ int main() {
     uiTableColumnSetWidth(libTable, 0, 20);
     uiTableColumnSetWidth(libTable, 1, 400);
     uiTableColumnSetWidth(libTable, 2, 160);
+    lastLibRowCount = NUM_LIBS;  // track initial row count
+
+    // Install tab filter row
+    auto *filterBox = uiNewHorizontalBox();
+    uiBoxSetPadded(filterBox, 1);
+    uiBoxAppend(installVBox, uiControl(filterBox), 0);
+
+    uiBoxAppend(filterBox, uiControl(uiNewLabel("Filter:")), 0);
+    filterEntry = uiNewEntry();
+    uiEntryOnChanged(filterEntry, onFilterChanged, nullptr);
+    uiBoxAppend(filterBox, uiControl(filterEntry), 1);
 
     // Install tab button row
     auto *installBtnBox = uiNewHorizontalBox();
@@ -1171,6 +1299,17 @@ int main() {
     uiTableColumnSetWidth(testTable, 0, 20);
     uiTableColumnSetWidth(testTable, 1, 400);
     uiTableColumnSetWidth(testTable, 2, 160);
+    lastTestRowCount = NUM_TESTS;  // track initial row count
+
+    // Test tab filter row
+    auto *testFilterBox = uiNewHorizontalBox();
+    uiBoxSetPadded(testFilterBox, 1);
+    uiBoxAppend(testVBox, uiControl(testFilterBox), 0);
+
+    uiBoxAppend(testFilterBox, uiControl(uiNewLabel("Filter:")), 0);
+    testFilterEntry = uiNewEntry();
+    uiEntryOnChanged(testFilterEntry, onTestFilterChanged, nullptr);
+    uiBoxAppend(testFilterBox, uiControl(testFilterEntry), 1);
 
     // Test tab button row
     auto *testBtnBox = uiNewHorizontalBox();

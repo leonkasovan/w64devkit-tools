@@ -44,8 +44,8 @@ fi
     --disable-x86asm \
     --target-os=mingw32 \
     --arch="$(gcc -dumpmachine | cut -d- -f1)" \
-    --extra-cflags="-I$INSTALL_PREFIX/include" \
-    --extra-ldflags="-L$INSTALL_PREFIX/lib"
+    --extra-cflags="-O2 -DNDEBUG -I$INSTALL_PREFIX/include" \
+    --extra-ldflags="-s -L$INSTALL_PREFIX/lib"
   make V=1 -j8
   make V=1 install
 )
